@@ -79,6 +79,10 @@ pub struct App {
 
     pub last_overlay_pos: Option<(i32, i32)>,
     pub last_overlay_size: Option<(u32, u32)>,
+
+    pub demo_mode: bool,
+    pub demo_last_step: Instant,
+    pub demo_tab_idx: usize,
 }
 
 impl App {
@@ -139,6 +143,10 @@ impl App {
 
             last_overlay_pos: None,
             last_overlay_size: None,
+
+            demo_mode: false,
+            demo_last_step: Instant::now(),
+            demo_tab_idx: 0,
         };
         ret
     }

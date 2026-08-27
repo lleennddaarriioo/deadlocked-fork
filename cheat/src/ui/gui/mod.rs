@@ -19,7 +19,7 @@ mod player;
 mod r#unsafe;
 mod telemetry;
 
-#[derive(PartialEq, Default)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 pub enum Tab {
     #[default]
     Aimbot,
@@ -30,6 +30,32 @@ pub enum Tab {
     Config,
     Application,
     Telemetry,
+}
+
+impl Tab {
+    pub const ALL: &'static [Tab] = &[
+        Tab::Aimbot,
+        Tab::Player,
+        Tab::Hud,
+        Tab::Grenades,
+        Tab::Unsafe,
+        Tab::Config,
+        Tab::Application,
+        Tab::Telemetry,
+    ];
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            Tab::Aimbot => "aimbot",
+            Tab::Player => "player",
+            Tab::Hud => "hud",
+            Tab::Grenades => "grenades",
+            Tab::Unsafe => "unsafe",
+            Tab::Config => "config",
+            Tab::Application => "application",
+            Tab::Telemetry => "telemetry",
+        }
+    }
 }
 
 impl App {
@@ -185,6 +211,29 @@ impl App {
 
         if let Err(err) = overlay.swap_buffers() {
             utils::error!("could not swap overlay window buffers: {err}");
+        }
+
+        if self.demo_mode {
+            if self.demo_tab_idx < Tab::ALL.len() {
+                self.current_tab = Tab::ALL[self.demo_tab_idx];
+                if self.demo_last_step.elapsed() >= Duration::from_millis(600) {
+                    let tab_name = Tab::ALL[self.demo_tab_idx].name();
+                    let file_name = format!("media/previews/{:02}_{}.png", self.demo_tab_idx + 1, tab_name);
+                    let _ = std::fs::create_dir_all("media/previews");
+                    
+                    utils::info!("Capturing full-system GUI screenshot for tab '{}' -> {}", tab_name, file_name);
+                    let _ = std::process::Command::new("sh")
+                        .arg("-c")
+                        .arg(format!("grim '{file_name}' || spectacle -b -n -o '{file_name}' || import -window root '{file_name}'"))
+                        .status();
+
+                    self.demo_tab_idx += 1;
+                    self.demo_last_step = std::time::Instant::now();
+                }
+            } else if self.demo_last_step.elapsed() >= Duration::from_millis(500) {
+                utils::info!("All GUI tab screenshots captured successfully! Exiting.");
+                std::process::exit(0);
+            }
         }
     }
 }

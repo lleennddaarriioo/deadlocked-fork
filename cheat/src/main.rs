@@ -36,7 +36,10 @@ fn main() {
     )
     .expect("failed to initialize logger");
 
-    if !check_uinput() {
+    let args: Vec<String> = std::env::args().collect();
+    let demo_mode = args.iter().any(|a| a == "--demo-screenshots");
+
+    if !demo_mode && !check_uinput() {
         return;
     }
 
@@ -63,6 +66,7 @@ fn main() {
     
     let data_radar = data.clone();
     let mut app = App::new(channel_gui, data);
+    app.demo_mode = demo_mode;
 
     radar::start_radar_thread(data_radar);
 
