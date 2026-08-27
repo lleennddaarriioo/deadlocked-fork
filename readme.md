@@ -111,8 +111,31 @@ Configs are saved in `$XDG_CONFIG_HOME` with fallback to `$HOME/.config`. Otherw
 
 ### I'm using Hyprland and something doesn't work
 
-Hyprland has poor X11 support for the techniques this cheat uses, not much i can do about that.
-Try another WM if possible.
+Running `./setup.sh` will ask if you want to automatically add the required window rules for `deadlocked_overlay` to your Hyprland configuration (`~/.config/hypr/hyprland.conf` or `hyprland.lua`).
+
+If you prefer to add them manually, add the following rules to your configuration:
+
+**For `hyprland.conf`:**
+```ini
+windowrule = float 1, match:title ^(deadlocked_overlay)$
+windowrule = no_focus 1, match:title ^(deadlocked_overlay)$
+windowrule = pin 1, match:title ^(deadlocked_overlay)$
+windowrule = no_blur 1, match:title ^(deadlocked_overlay)$
+windowrule = no_anim 1, match:title ^(deadlocked_overlay)$
+windowrule = no_shadow 1, match:title ^(deadlocked_overlay)$
+windowrule = no_blur 1, match:class ^(deadlocked)$
+```
+
+**For `hyprland.lua`:**
+```lua
+hl.window_rule({ match = { title = "^(deadlocked_overlay)$" }, float = 1 })
+hl.window_rule({ match = { title = "^(deadlocked_overlay)$" }, no_focus = 1 })
+hl.window_rule({ match = { title = "^(deadlocked_overlay)$" }, pin = 1 })
+hl.window_rule({ match = { title = "^(deadlocked_overlay)$" }, no_blur = 1 })
+hl.window_rule({ match = { title = "^(deadlocked_overlay)$" }, no_anim = 1 })
+hl.window_rule({ match = { title = "^(deadlocked_overlay)$" }, no_shadow = 1 })
+hl.window_rule({ match = { class = "^(deadlocked)$" }, no_blur = 1 })
+```
 
 ### I'm using Gamescope and the overlay is too small
 

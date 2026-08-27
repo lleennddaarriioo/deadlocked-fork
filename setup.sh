@@ -24,22 +24,53 @@ echo "reloaded udev rules"
 if [ "$XDG_CURRENT_DESKTOP" = "Hyprland" ]; then
     echo "detected Hyprland as window manager"
 
-    RULE="windowrule = no_blur 1, match:title ^(deadlocked_overlay)$"
     CONF_FILE="$HOME/.config/hypr/hyprland.conf"
     LUA_FILE="$HOME/.config/hypr/hyprland.lua"
 
-    if [ -f "$LUA_FILE" ]; then
-        if grep -q "deadlocked_overlay" "$LUA_FILE"; then
-            echo "deadlocked_overlay windowrule already present in hyprland.lua, skipping"
+    REPLY="Y"
+    if [ -t 0 ]; then
+        read -p "Do you want to add Hyprland overlay window rules to your config? [Y/n] " INPUT_REPLY
+        REPLY=${INPUT_REPLY:-Y}
+    fi
+
+    if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+        if [ -f "$LUA_FILE" ]; then
+            if grep -q "deadlocked_overlay" "$LUA_FILE"; then
+                echo "deadlocked_overlay windowrules already present in hyprland.lua, skipping"
+            else
+                cat << 'EOF' >> "$LUA_FILE"
+
+-- Deadlocked overlay rules
+hl.window_rule({ match = { title = "^(deadlocked_overlay)$" }, float = 1 })
+hl.window_rule({ match = { title = "^(deadlocked_overlay)$" }, no_focus = 1 })
+hl.window_rule({ match = { title = "^(deadlocked_overlay)$" }, pin = 1 })
+hl.window_rule({ match = { title = "^(deadlocked_overlay)$" }, no_blur = 1 })
+hl.window_rule({ match = { title = "^(deadlocked_overlay)$" }, no_anim = 1 })
+hl.window_rule({ match = { title = "^(deadlocked_overlay)$" }, no_shadow = 1 })
+hl.window_rule({ match = { class = "^(deadlocked)$" }, no_blur = 1 })
+EOF
+                echo "added windowrules to hyprland.lua"
+            fi
         else
-            echo "adding rules to hyprland.lua"
+            mkdir -p "$(dirname "$CONF_FILE")"
+            if grep -q "deadlocked_overlay" "$CONF_FILE" 2>/dev/null; then
+                echo "deadlocked_overlay windowrules already present in hyprland.conf, skipping"
+            else
+                cat << 'EOF' >> "$CONF_FILE"
+
+# Deadlocked overlay rules
+windowrule = float 1, match:title ^(deadlocked_overlay)$
+windowrule = no_focus 1, match:title ^(deadlocked_overlay)$
+windowrule = pin 1, match:title ^(deadlocked_overlay)$
+windowrule = no_blur 1, match:title ^(deadlocked_overlay)$
+windowrule = no_anim 1, match:title ^(deadlocked_overlay)$
+windowrule = no_shadow 1, match:title ^(deadlocked_overlay)$
+windowrule = no_blur 1, match:class ^(deadlocked)$
+EOF
+                echo "added windowrules to hyprland.conf"
+            fi
         fi
-    elif [ -f "$CONF_FILE" ]; then
-        if grep -Fxq "$RULE" "$CONF_FILE"; then
-            echo "deadlocked_overlay windowrule has already been added to hyprland.conf, skipping"
-        else
-            echo "$RULE" >> "$CONF_FILE"
-            echo "added windowrule to Hyprland"
-        fi
+    else
+        echo "Skipping Hyprland configuration changes."
     fi
 fi
