@@ -26,14 +26,15 @@ Running NixOS or Fedora Atomic? See [OS-Specific Setup](os-setup.md).
 ### Aimbot
 
 - Hotkey
-- FOV
-- Smooth
+- FOV (Static & Distance-Adjusted)
+- Smooth & Inertia Control
 - Start bullet
 - Targeting mode
-- Visibility check (VPK parsing)
-- Head only/whole body
+- Visibility check (BVH VPK parsing, Bone LoS, Pixel LoS, Both, Either)
+- Bone selection & Bone mode (Nearest / Priority)
 - Flash check
 - FOV circle
+- Grenade lineup auto-aim
 
 ### ESP
 
@@ -59,6 +60,17 @@ Running NixOS or Fedora Atomic? See [OS-Specific Setup](os-setup.md).
 - Velocity threshold
 - Head only mode
 
+### Bunnyhop & Movement
+
+- Auto Bunnyhop
+- Auto Strafe (Air acceleration optimization)
+- Edge Jump
+
+### Web Radar
+
+- WebSockets-based real-time 2D web radar dashboard
+- Public URL tunnel support via Cloudflare Tunnels
+
 ### Standalone RCS
 
 - Smoothing
@@ -69,10 +81,12 @@ Running NixOS or Fedora Atomic? See [OS-Specific Setup](os-setup.md).
 - Triggerbot
 - RCS
 
-### Misc
+### Misc & Telemetry
 
 - Sniper crosshair
 - Bomb timer
+- Mic Tone generator
+- Real-time thread performance & frame telemetry graph
 
 ### Unsafe
 
