@@ -1,7 +1,8 @@
 use egui::{DragValue, Ui};
 
 use crate::ui::{
-    app::App, gui::helpers::{checkbox, collapsing_open, color_picker, combo_box, drag, scroll},
+    app::App,
+    gui::helpers::{checkbox, collapsing_open, color_picker, drag, scroll, keybind},
 };
 
 impl App {
@@ -23,6 +24,14 @@ impl App {
                     ui,
                     "Crosshair Color",
                     &mut self.config.hud.sniper_crosshair.color,
+                ) {
+                    self.send_config();
+                }
+
+                if color_picker(
+                    ui,
+                    "Spread Circle Color",
+                    &mut self.config.hud.spread_circle_color,
                 ) {
                     self.send_config();
                 }
@@ -90,6 +99,16 @@ impl App {
 
     fn hud_left(&mut self, ui: &mut Ui) {
         collapsing_open(ui, "HUD", |ui| {
+            if drag(
+                ui,
+                "Target TPS",
+                DragValue::new(&mut self.config.fps)
+                    .range(1..=self.max_monitor_hz)
+                    .speed(1.0),
+            ) {
+                self.send_config();
+            }
+
             if checkbox(ui, "Bomb Timer", &mut self.config.hud.bomb_timer) {
                 self.send_config();
             }
@@ -98,7 +117,24 @@ impl App {
                 self.send_config();
             }
 
+            if checkbox(ui, "Spread Circle", &mut self.config.hud.spread_circle) {
+                self.send_config();
+            }
+
+            if checkbox(ui, "Hit Marker", &mut self.config.hud.hit_marker) {
+                self.send_config();
+            }
+
             if checkbox(ui, "Dropped Weapons", &mut self.config.hud.dropped_weapons) {
+                self.send_config();
+            }
+
+            if keybind(
+                ui,
+                "item_esp_hotkey",
+                "Item ESP Hotkey",
+                &mut self.config.hud.item_esp_hotkey,
+            ) {
                 self.send_config();
             }
 
@@ -107,6 +143,26 @@ impl App {
             }
 
             if checkbox(ui, "Spectator List", &mut self.config.hud.spectator_list) {
+                self.send_config();
+            }
+
+            if drag(
+                ui,
+                "Overlay X Offset",
+                DragValue::new(&mut self.config.hud.overlay_offset_x)
+                    .range(-1000..=1000)
+                    .speed(1.0),
+            ) {
+                self.send_config();
+            }
+
+            if drag(
+                ui,
+                "Overlay Y Offset",
+                DragValue::new(&mut self.config.hud.overlay_offset_y)
+                    .range(-1000..=1000)
+                    .speed(1.0),
+            ) {
                 self.send_config();
             }
         });
@@ -142,6 +198,45 @@ impl App {
                 ui,
                 "Gap",
                 DragValue::new(&mut self.config.hud.sniper_crosshair.gap)
+                    .range(0.0..=200.0)
+                    .max_decimals(1)
+                    .speed(0.2),
+            ) {
+                self.send_config();
+            }
+        });
+
+        ui.collapsing("Recoil Crosshair", |ui| {
+            if checkbox(ui, "Enabled", &mut self.config.hud.recoil_crosshair.enabled) {
+                self.send_config();
+            }
+
+            if drag(
+                ui,
+                "Line Length",
+                DragValue::new(&mut self.config.hud.recoil_crosshair.line_length)
+                    .range(0.1..=500.0)
+                    .max_decimals(1)
+                    .speed(0.2),
+            ) {
+                self.send_config();
+            }
+
+            if drag(
+                ui,
+                "Line Width",
+                DragValue::new(&mut self.config.hud.recoil_crosshair.line_width)
+                    .range(0.1..=10.0)
+                    .max_decimals(1)
+                    .speed(0.005),
+            ) {
+                self.send_config();
+            }
+
+            if drag(
+                ui,
+                "Gap",
+                DragValue::new(&mut self.config.hud.recoil_crosshair.gap)
                     .range(0.0..=200.0)
                     .max_decimals(1)
                     .speed(0.2),
@@ -189,25 +284,21 @@ impl App {
             ) {
                 self.send_config();
             }
-
-            if combo_box(ui, "font", "Font", &mut self.config.font) {
-                self.config.font.set(ui.ctx());
-                if let Some(overlay) = &self.overlay {
-                    self.config.font.set(overlay.egui());
-                }
-                self.send_config();
-            }
         });
 
         ui.collapsing("Advanced", |ui| {
-            if checkbox(ui, "Debug Overlay", &mut self.config.hud.debug) {
+            if checkbox(ui, "Player Position & Speed", &mut self.config.hud.debug) {
+                self.send_config();
+            }
+
+            if checkbox(ui, "Raycast & Penetration Debug", &mut self.config.hud.raycast_debug) {
                 self.send_config();
             }
 
             if drag(
                 ui,
                 "FPS",
-                DragValue::new(&mut self.config.fps).range(30..=500),
+                DragValue::new(&mut self.config.fps).range(1..=self.max_monitor_hz),
             ) {
                 self.send_config();
             }

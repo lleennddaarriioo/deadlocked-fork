@@ -5,7 +5,11 @@ use bytemuck::{Pod, Zeroable};
 use crate::{cs2::CS2, parser::bvh::Triangle};
 
 pub fn read_bvh(cs2: &CS2) -> Option<Vec<Triangle>> {
-    let wld: u64 = cs2.process.read(cs2.offsets.direct.vphys_world);
+    let wld_ptr: u64 = cs2.process.read(cs2.offsets.direct.vphys_world);
+    if wld_ptr == 0 {
+        return None;
+    }
+    let wld: u64 = cs2.process.read(wld_ptr);
     if wld == 0 {
         return None;
     }
@@ -52,8 +56,15 @@ pub fn read_bvh(cs2: &CS2) -> Option<Vec<Triangle>> {
         let mut outer_stack = Vec::with_capacity(128);
         outer_stack.push(rt);
 
+        let mut iterations = 0;
+
         // collect all outer nodes in outer_stack
         while let Some(index) = outer_stack.pop() {
+            iterations += 1;
+            if iterations > cnt * 2 {
+                break;
+            }
+
             if index < 0 || index >= cnt {
                 continue;
             }
@@ -109,16 +120,19 @@ fn process_mesh(cs2: &CS2, shape: u64, triangles: &mut Vec<Triangle>) {
 
     // CUtlVector<u8>
     let mats: UtlVector = cs2.process.read(mesh_data + 144);
+    // CUtlVector<RnVertex_t>
+    let vertices: UtlVector = cs2.process.read(mesh_data + 48);
+    // CUtlVector<RnTriangle_t>
+    let mesh_triangles: UtlVector = cs2.process.read(mesh_data + 72);
+
     // todo: ignore meshes with collision
     if mats.count == 0 {
         return;
     }
 
-    // CUtlVector<RnVertex_t>
-    let vertices: UtlVector = cs2.process.read(mesh_data + 48);
+    let material_indices: Vec<u8> = cs2.process.read_typed_vec(mats.data, 1, mats.count as usize);
 
-    // CUtlVector<RnTriangle_t>
-    let mesh_triangles: UtlVector = cs2.process.read(mesh_data + 72);
+    let default_material: u8 = cs2.process.read(shape + 0x80);
 
     let vertices: Vec<glam::Vec3> = cs2.process.read_typed_vec(
         vertices.data,
@@ -132,12 +146,23 @@ fn process_mesh(cs2: &CS2, shape: u64, triangles: &mut Vec<Triangle>) {
         mesh_triangles.count as usize,
     );
 
-    for triangle in mesh_triangles {
+    for (i, triangle) in mesh_triangles.into_iter().enumerate() {
         let v0 = vertices[triangle.idx[0] as usize];
         let v1 = vertices[triangle.idx[1] as usize];
         let v2 = vertices[triangle.idx[2] as usize];
 
-        triangles.push(Triangle { v0, v1, v2 });
+        let material = if i < material_indices.len() {
+            let override_mat = material_indices[i];
+            if override_mat == 0 {
+                default_material
+            } else {
+                override_mat
+            }
+        } else {
+            default_material
+        };
+
+        triangles.push(Triangle { v0, v1, v2, material });
     }
 }
 
@@ -148,6 +173,7 @@ fn process_hull(cs2: &CS2, shape: u64, triangles: &mut Vec<Triangle>) {
         return;
     }
 
+    let material: u8 = cs2.process.read(shape + 0x80);
     let scale: f32 = cs2.process.read(shape + 0xB0);
 
     let vertices: UtlVector = cs2.process.read(data + 112);
@@ -178,7 +204,16 @@ fn process_hull(cs2: &CS2, shape: u64, triangles: &mut Vec<Triangle>) {
         let mut current_edge_idx = face_start_edge;
 
         loop {
+            if current_edge_idx as usize >= edges.len() {
+                break;
+            }
+
             let edge = &edges[current_edge_idx as usize];
+            
+            if edge.origin as usize >= vertices.len() {
+                break;
+            }
+            
             let vertex = vertices[edge.origin as usize];
 
             face_vertices.push(vertex * scale);
@@ -186,6 +221,10 @@ fn process_hull(cs2: &CS2, shape: u64, triangles: &mut Vec<Triangle>) {
             current_edge_idx = edge.next;
 
             if current_edge_idx == face_start_edge {
+                break;
+            }
+
+            if face_vertices.len() > edges.len() {
                 break;
             }
         }
@@ -196,7 +235,7 @@ fn process_hull(cs2: &CS2, shape: u64, triangles: &mut Vec<Triangle>) {
                 let v1 = face_vertices[i];
                 let v2 = face_vertices[i + 1];
 
-                triangles.push(Triangle { v0, v1, v2 });
+                triangles.push(Triangle { v0, v1, v2, material });
             }
         }
     }

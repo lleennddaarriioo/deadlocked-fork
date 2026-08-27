@@ -195,7 +195,7 @@ impl Player {
             return None;
         }
 
-        let index = handle as u64 & 0xFFF;
+        let index = handle as u64 & 0x7FFF;
         Player::get_client_entity(cs2, index)
     }
 
@@ -234,6 +234,13 @@ impl Player {
         }
 
         weapons
+    }
+
+    pub fn inaccuracy(&self, cs2: &CS2) -> f32 {
+        let Some(weapon) = self.weapon_address(cs2) else {
+            return 0.0;
+        };
+        cs2.process.read(weapon + cs2.offsets.weapon.inaccuracy)
     }
 
     pub fn clip_ammo(&self, cs2: &CS2) -> i32 {
@@ -461,29 +468,84 @@ impl Player {
         )
     }
 
-    pub fn visible(&self, cs2: &CS2, local_player: &Player) -> bool {
+    pub fn is_bone_visible(&self, cs2: &CS2, local_player: &Player) -> bool {
+        let steam_id = self.steam_id(cs2);
+        if let Some(cached_map) = cs2.cached_bone_vis.get(&steam_id) {
+            if !cached_map.is_empty() {
+                const CHECKED_BONES: [Bones; 9] = [
+                    Bones::Head,
+                    Bones::Neck,
+                    Bones::Spine4,
+                    Bones::Spine2,
+                    Bones::Hip,
+                    Bones::LeftFoot,
+                    Bones::RightFoot,
+                    Bones::LeftHand,
+                    Bones::RightHand,
+                ];
+                return CHECKED_BONES.iter().any(|b| cached_map.get(b).copied().unwrap_or(false));
+            }
+        }
+
         if let Some(bvh) = &cs2.bvh {
             let eye_pos = local_player.eye_position(cs2);
-            const CHECKED_BONES: [Bones; 5] = [
+            const CHECKED_BONES: [Bones; 9] = [
                 Bones::Head,
+                Bones::Neck,
+                Bones::Spine4,
+                Bones::Spine2,
+                Bones::Hip,
                 Bones::LeftFoot,
                 Bones::RightFoot,
                 Bones::LeftHand,
                 Bones::RightHand,
             ];
-            if !CHECKED_BONES
+            CHECKED_BONES
                 .iter()
                 .any(|bone| bvh.has_line_of_sight(eye_pos, self.bone_position(cs2, bone.u64())))
-            {
-                return false;
-            }
         } else {
-            let spotted_mask = self.spotted_mask(cs2);
-            if (spotted_mask & (1 << cs2.target.local_pawn_index)) == 0 {
-                return false;
-            }
+            true
         }
-        true
+    }
+
+    pub fn is_pixel_visible_uncached(&self, cs2: &CS2) -> bool {
+        let spotted_mask = self.spotted_mask(cs2);
+        (spotted_mask & (1 << cs2.target.local_pawn_index)) != 0
+    }
+
+    pub fn is_pixel_visible(&self, cs2: &CS2) -> bool {
+        let steam_id = self.steam_id(cs2);
+        if let Some(&cached) = cs2.cached_pixel_vis.get(&steam_id) {
+            return cached;
+        }
+
+        self.is_pixel_visible_uncached(cs2)
+    }
+
+    pub fn is_visible_mode(
+        &self,
+        cs2: &CS2,
+        local_player: &Player,
+        mode: crate::config::aim::VisibilityMode,
+    ) -> bool {
+        use crate::config::aim::VisibilityMode;
+        let bone_vis = self.is_bone_visible(cs2, local_player);
+        let pixel_vis = self.is_pixel_visible(cs2);
+
+        match mode {
+            VisibilityMode::BoneLoS | VisibilityMode::BoneFast => bone_vis,
+            VisibilityMode::PixelLoS => pixel_vis,
+            VisibilityMode::Both => bone_vis && pixel_vis,
+            VisibilityMode::Either => bone_vis || pixel_vis,
+        }
+    }
+
+    pub fn visible(&self, cs2: &CS2, local_player: &Player) -> bool {
+        if cs2.bvh.is_some() {
+            self.is_bone_visible(cs2, local_player)
+        } else {
+            self.is_pixel_visible(cs2)
+        }
     }
 
     pub fn crosshair_entity(&self, cs2: &CS2) -> Option<Self> {
@@ -507,6 +569,15 @@ impl Player {
 
     pub fn velocity(&self, cs2: &CS2) -> Vec3 {
         cs2.process.read(self.pawn + cs2.offsets.pawn.velocity)
+    }
+
+    pub fn view_angles_direct(&self, process: &crate::os::process::Process, offsets: &crate::cs2::offsets::Offsets) -> Vec2 {
+        process.read(self.pawn + offsets.pawn.view_angles)
+    }
+
+    pub fn is_in_air_direct(&self, process: &crate::os::process::Process, offsets: &crate::cs2::offsets::Offsets) -> bool {
+        let flags = process.read::<i32>(self.pawn + offsets.pawn.flags);
+        (flags & 1) == 0
     }
 
     fn is_in_air(&self, cs2: &CS2) -> bool {
@@ -553,6 +624,22 @@ impl Player {
             cs2.process
                 .write(self.pawn + cs2.offsets.pawn.flash_alpha, flash_alpha);
         }
+    }
+
+    pub fn fov(&self, cs2: &CS2) -> u32 {
+        let camera_service: u64 = cs2
+            .process
+            .read(self.pawn + cs2.offsets.pawn.camera_services);
+        if camera_service == 0 {
+            return 90;
+        }
+
+        cs2.process
+            .read(camera_service + cs2.offsets.camera_services.fov)
+    }
+
+    pub fn is_defusing(&self, cs2: &CS2) -> bool {
+        cs2.process.read::<u8>(self.pawn + cs2.offsets.pawn.is_defusing) != 0
     }
 
     pub fn set_fov(&self, cs2: &CS2, value: u32) {

@@ -1,10 +1,10 @@
 use std::{
-    cell::RefCell,
     collections::HashMap,
     fs::{File, OpenOptions, read_dir, read_link},
     io::{BufRead, BufReader},
     os::unix::fs::FileExt,
     path::PathBuf,
+    sync::RwLock,
 };
 
 use bytemuck::Pod;
@@ -19,7 +19,7 @@ pub struct Process {
     path: PathBuf,
     pub min: u64,
     pub max: u64,
-    string_cache: RefCell<HashMap<u64, String>>,
+    string_cache: RwLock<HashMap<u64, String>>,
 }
 
 impl Process {
@@ -31,7 +31,7 @@ impl Process {
                 file: OpenOptions::new().read(true).open("/dev/null").unwrap(),
                 min: u64::MAX,
                 max: u64::MIN,
-                string_cache: RefCell::new(HashMap::new()),
+                string_cache: RwLock::new(HashMap::new()),
             };
         }
 
@@ -48,7 +48,7 @@ impl Process {
             file,
             min: u64::MAX,
             max: u64::MIN,
-            string_cache: RefCell::new(HashMap::new()),
+            string_cache: RwLock::new(HashMap::new()),
         };
 
         let libs: Vec<u64> = cs2::LIBS
@@ -192,13 +192,15 @@ impl Process {
     }
 
     pub fn read_string(&self, address: u64) -> String {
-        if let Some(cached) = self.string_cache.borrow().get(&address).cloned() {
-            return cached;
+        if let Ok(cache) = self.string_cache.read() {
+            if let Some(cached) = cache.get(&address) {
+                return cached.clone();
+            }
         }
         let string = self.read_string_uncached(address);
-        self.string_cache
-            .borrow_mut()
-            .insert(address, string.clone());
+        if let Ok(mut cache) = self.string_cache.write() {
+            cache.insert(address, string.clone());
+        }
         string
     }
 

@@ -26,6 +26,18 @@ pub fn angles_from_vector(forward: &Vec3) -> Vec2 {
     Vec2::new(pitch, yaw)
 }
 
+pub fn vector_from_angles(pitch: f32, yaw: f32) -> Vec3 {
+    let pitch_rad = pitch.to_radians();
+    let yaw_rad = yaw.to_radians();
+
+    let sp = pitch_rad.sin();
+    let cp = pitch_rad.cos();
+    let sy = yaw_rad.sin();
+    let cy = yaw_rad.cos();
+
+    Vec3::new(cp * cy, cp * sy, -sp)
+}
+
 pub fn angles_to_fov(view_angles: &Vec2, aim_angles: &Vec2) -> f32 {
     let mut delta = view_angles - aim_angles;
 

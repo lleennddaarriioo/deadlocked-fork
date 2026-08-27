@@ -28,9 +28,14 @@ impl App {
 
         self.update_trails();
         self.update_player_sounds();
-        let data = &self.data.lock();
+        
+        let (win_pos, win_size) = {
+            let data = self.data.lock();
+            (data.window_position, data.window_size)
+        };
+        self.update_window(win_pos, win_size);
 
-        self.update_window(data);
+        let data = &self.data.lock();
         self.overlay_debug(&painter, data);
 
         for player in &data.players {
@@ -39,23 +44,26 @@ impl App {
             }
         }
 
-        if self.config.player.show_friendlies {
-            for player in &data.friendlies {
-                if data.esp_active {
+        for player in &data.friendlies {
+            if data.esp_active {
+                let is_target = !self.config.player.target_player_name.is_empty() && player.name.contains(&self.config.player.target_player_name);
+                let force_show = player.has_bomb || is_target;
+                if self.config.player.show_friendlies || force_show {
                     self.draw_player(&painter, player, data);
                 }
             }
         }
 
-        if self.config.hud.dropped_weapons || self.config.hud.grenade_trails.enabled {
-            for entity in &data.entities {
-                self.draw_entity(&painter, entity, data);
-            }
+        for entity in &data.entities {
+            self.draw_entity(&painter, entity, data);
         }
 
         self.draw_bomb_timer(&painter, data);
         self.draw_fov_circle(&painter, data);
+        self.draw_spread_circle(&painter, data);
         self.draw_sniper_crosshair(&painter, data);
+        self.draw_recoil_crosshair(&painter, data);
+        self.draw_hit_marker(&painter, data);
         self.draw_keybind_list(&painter, data);
         self.draw_spectator_list(&painter, data);
 
@@ -88,28 +96,29 @@ impl App {
         self.grenade_manager(data, &painter);
     }
 
-    fn update_window(&self, data: &Data) {
+    fn update_window(&mut self, win_pos: glam::Vec2, win_size: glam::Vec2) {
         let Some(window) = &self.overlay else {
             return;
         };
 
-        let position = winit::dpi::PhysicalPosition::new(
-            data.window_position.x as i32,
-            data.window_position.y as i32,
-        );
-        if !match window.window().outer_position() {
-            Ok(pos) => pos == position,
-            Err(_) => false,
-        } {
-            window.window().set_outer_position(position);
+        let target_x = win_pos.x as i32 + self.config.hud.overlay_offset_x;
+        let target_y = win_pos.y as i32 + self.config.hud.overlay_offset_y;
+
+        if self.last_overlay_pos != Some((target_x, target_y)) {
+            window
+                .window()
+                .set_outer_position(winit::dpi::PhysicalPosition::new(target_x, target_y));
+            self.last_overlay_pos = Some((target_x, target_y));
         }
 
-        let size = winit::dpi::PhysicalSize::new(
-            data.window_size.x.max(1.0) as u32,
-            data.window_size.y.max(1.0) as u32,
-        );
-        if window.window().inner_size() != size {
-            let _ = window.window().request_inner_size(size);
+        let target_w = win_size.x.max(1.0) as u32;
+        let target_h = win_size.y.max(1.0) as u32;
+
+        if self.last_overlay_size != Some((target_w, target_h)) {
+            let _ = window
+                .window()
+                .request_inner_size(winit::dpi::PhysicalSize::new(target_w, target_h));
+            self.last_overlay_size = Some((target_w, target_h));
         }
     }
 
@@ -122,20 +131,192 @@ impl App {
         };
 
         let player_weapon = &data.local_player.weapon;
-        for grenade in grenades {
-            if *player_weapon != grenade.weapon {
-                continue;
-            }
-            let distance = (position - grenade.position).length();
-            if distance > 500.0 {
-                continue;
-            }
+        
+        let nearest_grenade = grenades
+            .iter()
+            .filter(|g| g.weapon == *player_weapon)
+            .map(|g| (g, (position - g.position).length()))
+            .filter(|(_, dist)| *dist <= 1000.0)
+            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        if let Some((grenade, distance)) = nearest_grenade {
+            // Draw standing ring on ground
             self.grenade_circle(data, grenade, painter);
 
-            if distance > 24.0 {
-                continue;
+            // Draw line from player to standing spot if not standing on it
+            if distance > 5.0 {
+                if let (Some(player_screen), Some(spot_screen)) = (
+                    world_to_screen(&data.local_player.position, data),
+                    world_to_screen(&grenade.position, data),
+                ) {
+                    let stroke = Stroke::new(2.5, Color32::from_rgb(0, 229, 255));
+                    painter.line_segment([player_screen, spot_screen], stroke);
+                }
             }
+
+            // Always show aim target reticle regardless of distance when holding matching grenade
             self.grenade_indicator(data, grenade, painter);
+
+            // HUD Guidance Box for Movement & Aim Alignment
+            self.draw_grenade_guidance_hud(data, grenade, painter, distance);
+        }
+    }
+
+    fn draw_grenade_guidance_hud(
+        &self,
+        data: &Data,
+        grenade: &Grenade,
+        painter: &Painter,
+        distance: f32,
+    ) {
+        let screen_center = pos2(data.window_size.x / 2.0, data.window_size.y * 0.76);
+
+        // Calculate relative direction to standing position
+        let delta_world = grenade.position - data.local_player.position;
+        let yaw_rad = data.view_angles.y.to_radians();
+
+        let forward_dir = vec3(yaw_rad.cos(), yaw_rad.sin(), 0.0);
+        let right_dir = vec3(-yaw_rad.sin(), yaw_rad.cos(), 0.0);
+
+        let forward_dist = delta_world.dot(forward_dir);
+        let right_dist = delta_world.dot(right_dir);
+
+        // Angle differences
+        let mut yaw_diff = grenade.view_angles.y - data.view_angles.y;
+        while yaw_diff > 180.0 {
+            yaw_diff -= 360.0;
+        }
+        while yaw_diff < -180.0 {
+            yaw_diff += 360.0;
+        }
+        let pitch_diff = grenade.view_angles.x - data.view_angles.x;
+
+        let in_position = distance <= 5.0;
+        let aim_aligned = pitch_diff.abs() < 0.6 && yaw_diff.abs() < 0.6;
+
+        let box_width = 340.0;
+        let box_height = 100.0;
+        let bg_rect = egui::Rect::from_center_size(screen_center, egui::vec2(box_width, box_height));
+
+        let border_color = if in_position && aim_aligned {
+            Color32::from_rgb(0, 255, 157)
+        } else if in_position {
+            Color32::from_rgb(255, 200, 0)
+        } else {
+            Color32::from_rgb(0, 229, 255)
+        };
+
+        painter.rect(
+            bg_rect,
+            8.0,
+            Color32::from_rgba_unmultiplied(10, 15, 25, 220),
+            Stroke::new(2.0, border_color),
+            egui::StrokeKind::Middle,
+        );
+
+        let mut text_y = bg_rect.min.y + 10.0;
+
+        self.text(
+            painter,
+            format!("🎯 Lineup: {} ({})", grenade.name, grenade.weapon),
+            pos2(screen_center.x, text_y),
+            Align2::CENTER_TOP,
+            Some(Color32::WHITE),
+        );
+        text_y += 20.0;
+
+        let pos_str = if in_position {
+            "📍 Position: IN POSITION ✓".to_string()
+        } else {
+            let fwd_str = if forward_dist > 1.0 {
+                format!("Forward {:.1}u", forward_dist)
+            } else if forward_dist < -1.0 {
+                format!("Back {:.1}u", -forward_dist)
+            } else {
+                "".to_string()
+            };
+
+            let side_str = if right_dist > 1.0 {
+                format!("Right {:.1}u", right_dist)
+            } else if right_dist < -1.0 {
+                format!("Left {:.1}u", -right_dist)
+            } else {
+                "".to_string()
+            };
+
+            format!("🚶 Move: {} {} ({:.1}u)", fwd_str, side_str, distance).trim().to_string()
+        };
+
+        let pos_color = if in_position {
+            Color32::GREEN
+        } else {
+            Color32::from_rgb(0, 229, 255)
+        };
+        self.text(
+            painter,
+            pos_str,
+            pos2(screen_center.x, text_y),
+            Align2::CENTER_TOP,
+            Some(pos_color),
+        );
+        text_y += 20.0;
+
+        let aim_str = if aim_aligned {
+            "🎯 Aim: PERFECT ALIGNMENT ✓".to_string()
+        } else {
+            let p_str = if pitch_diff > 0.3 {
+                format!("DOWN {:.1}°", pitch_diff)
+            } else if pitch_diff < -0.3 {
+                format!("UP {:.1}°", -pitch_diff)
+            } else {
+                "".to_string()
+            };
+
+            let y_str = if yaw_diff > 0.3 {
+                format!("RIGHT {:.1}°", yaw_diff)
+            } else if yaw_diff < -0.3 {
+                format!("LEFT {:.1}°", -yaw_diff)
+            } else {
+                "".to_string()
+            };
+
+            format!("👀 Aim: {} {}", p_str, y_str).trim().to_string()
+        };
+
+        let aim_color = if aim_aligned {
+            Color32::GREEN
+        } else {
+            Color32::LIGHT_YELLOW
+        };
+        self.text(
+            painter,
+            aim_str,
+            pos2(screen_center.x, text_y),
+            Align2::CENTER_TOP,
+            Some(aim_color),
+        );
+        text_y += 20.0;
+
+        if in_position && aim_aligned {
+            let throw_mod = match (
+                grenade.modifiers.duck,
+                grenade.modifiers.jump,
+                grenade.modifiers.run,
+            ) {
+                (false, false, false) => "NORMAL THROW",
+                (true, false, false) => "DUCK THROW",
+                (false, true, false) => "JUMP THROW",
+                (true, true, false) => "DUCK + JUMP THROW",
+                (false, true, true) => "JUMP + RUN THROW",
+                _ => "SPECIAL THROW",
+            };
+            self.text(
+                painter,
+                format!("🔥 READY! RELEASE [{}] NOW!", throw_mod),
+                pos2(screen_center.x, text_y),
+                Align2::CENTER_TOP,
+                Some(Color32::from_rgb(0, 255, 157)),
+            );
         }
     }
 

@@ -38,8 +38,19 @@ pub fn grenade_info(entity: u64, name: &'static str, cs2: &CS2) -> GrenadeInfo {
     }
 }
 
+use rayon::prelude::*;
+
+struct BucketResult {
+    players: Vec<Player>,
+    dead_players: Vec<Player>,
+    entities: Vec<Entity>,
+    planted_c4: Option<PlantedC4>,
+    local_pawn_index: Option<u64>,
+}
+
 impl CS2 {
     pub fn cache_entities(&mut self) {
+        crate::profile_scope!("cache_entities");
         self.players.clear();
         self.dead_players.clear();
         self.entities.clear();
@@ -55,21 +66,44 @@ impl CS2 {
         let bucket_pointers = self
             .process
             .read_vec(self.offsets.interface.entity, 0x8 * NUM_BUCKETS);
-        for bucket_index in 0..64 {
-            let bucket_pointer =
-                *bytemuck::from_bytes(&bucket_pointers[bucket_index * 8..(bucket_index + 1) * 8]);
-            self.get_entities_in_bucket(bucket_index as u64, bucket_pointer, &local_player);
+
+        let results: Vec<BucketResult> = (0..64)
+            .into_par_iter()
+            .map(|bucket_index| {
+                let bucket_pointer = *bytemuck::from_bytes(&bucket_pointers[bucket_index * 8..(bucket_index + 1) * 8]);
+                self.get_entities_in_bucket(bucket_index as u64, bucket_pointer, &local_player)
+            })
+            .collect();
+
+        for res in results {
+            self.players.extend(res.players);
+            self.dead_players.extend(res.dead_players);
+            self.entities.extend(res.entities);
+            if res.planted_c4.is_some() {
+                self.planted_c4 = res.planted_c4;
+            }
+            if let Some(pawn_idx) = res.local_pawn_index {
+                self.target.local_pawn_index = pawn_idx;
+            }
         }
     }
 
     fn get_entities_in_bucket(
-        &mut self,
+        &self,
         bucket_index: u64,
         bucket_ptr: u64,
         local_player: &Player,
-    ) {
+    ) -> BucketResult {
+        let mut result = BucketResult {
+            players: Vec::new(),
+            dead_players: Vec::new(),
+            entities: Vec::new(),
+            planted_c4: None,
+            local_pawn_index: None,
+        };
+
         if bucket_ptr == 0 || bucket_ptr >> 48 != 0 {
-            return;
+            return result;
         }
         const IDENTITIES_PER_BUCKET: usize = 512;
         let bucket = self.process.read_vec(
@@ -78,6 +112,9 @@ impl CS2 {
         );
         for index_in_bucket in 0..IDENTITIES_PER_BUCKET {
             let identity_offset = index_in_bucket * self.offsets.entity_identity.size as usize;
+            if identity_offset + 24 > bucket.len() {
+                continue;
+            }
 
             let entity: u64 = *bytemuck::from_bytes(&bucket[identity_offset..identity_offset + 8]);
             if entity == 0 {
@@ -105,34 +142,33 @@ impl CS2 {
                     };
 
                     if !player.is_valid(self) {
-                        self.dead_players.push(player);
+                        result.dead_players.push(player);
                         continue;
                     }
 
                     if player == *local_player {
-                        self.target.local_pawn_index = (handle as u64 & 0x7FFF) - 1;
+                        result.local_pawn_index = Some((handle as u64 & 0x7FFF) - 1);
                     } else {
-                        self.players.push(player);
+                        result.players.push(player);
                     }
                 }
                 class::PLANTED_C4 => {
                     let planted_c4 = PlantedC4::new(entity);
                     if planted_c4.is_relevant(self) {
-                        self.planted_c4 = Some(planted_c4)
+                        result.planted_c4 = Some(planted_c4);
                     }
                 }
                 class::INFERNO => {
-                    self.entities.push(Entity::Inferno(Inferno::new(entity)));
+                    result.entities.push(Entity::Inferno(Inferno::new(entity)));
                 }
                 class::SMOKE => {
-                    self.entities.push(Entity::Smoke(Smoke::new(entity)));
+                    result.entities.push(Entity::Smoke(Smoke::new(entity)));
                 }
-                class::MOLOTOV => self.entities.push(Entity::Molotov(Molotov::new(entity))),
-                class::FLASHBANG => self.entities.push(Entity::Flashbang(entity)),
-                class::HE_GRENADE => self.entities.push(Entity::HeGrenade(entity)),
-                class::DECOY => self.entities.push(Entity::Decoy(entity)),
+                class::MOLOTOV => result.entities.push(Entity::Molotov(Molotov::new(entity))),
+                class::FLASHBANG => result.entities.push(Entity::Flashbang(entity)),
+                class::HE_GRENADE => result.entities.push(Entity::HeGrenade(entity)),
+                class::DECOY => result.entities.push(Entity::Decoy(entity)),
                 _ => {
-                    // check if weapon
                     let entity_identity: u64 = self.process.read(entity + 0x10);
                     if entity_identity == 0 {
                         continue;
@@ -151,19 +187,15 @@ impl CS2 {
                         }
 
                         let weapon = weapon_from_entity(entity, self);
+                        if weapon == Weapon::Unknown {
+                            continue;
+                        }
 
-                        self.entities.push(Entity::Weapon { weapon, entity });
+                        result.entities.push(Entity::Weapon { weapon, entity });
                     }
                 }
             }
-
-            // m_designerName
-            /*let name_pointer: u64 =
-                *bytemuck::from_bytes(&bucket[identity_offset + 0x20..identity_offset + 0x28]);
-            let Some(entity) = self.entity_type(entity, name_pointer) else {
-                continue;
-            };
-            self.entities.push(entity);*/
         }
+        result
     }
 }

@@ -12,3 +12,4 @@ axum = { version = "0.8", features = ["ws"] }
 tokio = { version = "1.52", features = ["full"] }
 tower-http = { version = "0.7", features = ["fs"] }
 uuid = { version = "1.23", features = ["v4", "serde"] }
+reqwest = { version = "0.13.4", features = ["json"] }

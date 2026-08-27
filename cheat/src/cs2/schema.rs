@@ -8,12 +8,8 @@ pub struct Schema {
 
 impl Schema {
     pub fn new(process: &Process, schema_module: u64) -> Option<Self> {
-        let schema_system = process.scan(
-            "48 8b 05 ? ? ? ? 48 8d 15 ? ? ? ? 4c 89 e9",
-            schema_module,
-        )?;
-        let schema_system = process.get_relative_address(schema_system, 3, 7);
-        let schema_system: u64 = process.read(schema_system);
+        let schema_system_ptr = schema_module + 238512;
+        let schema_system = process.get_relative_address(schema_system_ptr, 3, 7);
 
         let type_scopes_len: i32 = process.read(schema_system + 0x1F0);
         let type_scopes_vec: u64 = process.read(schema_system + 0x1F8);
@@ -96,6 +92,7 @@ impl ModuleScope {
     }
 }
 
+#[derive(Debug)]
 pub struct Class {
     name: String,
     fields: HashMap<String, u64>,

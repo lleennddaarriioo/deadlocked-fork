@@ -8,8 +8,9 @@ use crate::ui::{
     gui::helpers::{checkbox, checkbox_hover, collapsing_open, combo_box, drag, keybind, scroll},
 };
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Default)]
 pub enum AimbotTab {
+    #[default]
     Global,
     Weapon,
 }
@@ -143,6 +144,15 @@ impl App {
             ) {
                 self.send_config();
             }
+
+            if combo_box(
+                ui,
+                "bone_mode",
+                "Bone Mode",
+                &mut self.weapon_config().aimbot.bone_mode,
+            ) {
+                self.send_config();
+            }
         });
 
         ui.collapsing("Checks", |ui| {
@@ -150,6 +160,26 @@ impl App {
                 ui,
                 "Visibility Check",
                 &mut self.weapon_config().aimbot.visibility_check,
+            ) {
+                self.send_config();
+            }
+
+            if combo_box(
+                ui,
+                "aimbot_visibility_mode",
+                "Visibility Mode",
+                &mut self.weapon_config().aimbot.visibility_mode,
+            ) {
+                self.send_config();
+            }
+
+            if drag(
+                ui,
+                "Damage Threshold",
+                DragValue::new(&mut self.weapon_config().aimbot.damage_threshold)
+                    .range(0.0..=120.0)
+                    .speed(0.5)
+                    .suffix(" HP"),
             ) {
                 self.send_config();
             }
@@ -165,13 +195,19 @@ impl App {
 
         ui.collapsing("Bones", |ui| {
             for bone in Bones::iter() {
-                let text = format!("{:?}", bone);
                 let index = self
                     .weapon_config()
                     .aimbot
                     .bones
                     .iter()
                     .position(|b| *b == bone);
+                
+                let text = if let Some(idx) = index {
+                    format!("[{}] {:?}", idx + 1, bone)
+                } else {
+                    format!("{:?}", bone)
+                };
+
                 if ui.selectable_label(index.is_some(), text).clicked() {
                     if let Some(index) = index {
                         self.weapon_config().aimbot.bones.remove(index);
@@ -180,6 +216,11 @@ impl App {
                     }
                     self.send_config();
                 }
+            }
+
+            if ui.button("Clear All").clicked() {
+                self.weapon_config().aimbot.bones.clear();
+                self.send_config();
             }
         });
     }
@@ -207,8 +248,25 @@ impl App {
             if keybind(
                 ui,
                 "triggerbot_hotkey",
-                "Hotkey",
+                "Hotkey 1",
                 &mut self.config.aim.triggerbot_hotkey,
+            ) {
+                self.send_config();
+            }
+
+            if keybind(
+                ui,
+                "triggerbot_hotkey2",
+                "Hotkey 2",
+                &mut self.config.aim.triggerbot_hotkey2,
+            ) {
+                self.send_config();
+            }
+
+            if checkbox(
+                ui,
+                "Auto Pistol (Uses Triggerbot Hotkey)",
+                &mut self.config.aim.auto_pistol,
             ) {
                 self.send_config();
             }
@@ -243,6 +301,16 @@ impl App {
 
             if drag(
                 ui,
+                "Hit Chance",
+                DragValue::new(&mut self.weapon_config().triggerbot.hit_chance)
+                    .range(0.0..=1.0)
+                    .speed(0.01),
+            ) {
+                self.send_config();
+            }
+
+            if drag(
+                ui,
                 "Hold Duration (ms)",
                 DragValue::new(&mut self.weapon_config().triggerbot.shot_duration)
                     .range(0..=2000)
@@ -253,6 +321,34 @@ impl App {
         });
 
         ui.collapsing("Checks\u{200b}", |ui| {
+            if drag(
+                ui,
+                "Damage Threshold",
+                DragValue::new(&mut self.weapon_config().triggerbot.damage_threshold)
+                    .range(0.0..=120.0)
+                    .speed(0.5)
+                    .suffix(" HP"),
+            ) {
+                self.send_config();
+            }
+
+            if checkbox(
+                ui,
+                "Visibility Check",
+                &mut self.weapon_config().triggerbot.visibility_check,
+            ) {
+                self.send_config();
+            }
+
+            if combo_box(
+                ui,
+                "triggerbot_visibility_mode",
+                "Visibility Mode",
+                &mut self.weapon_config().triggerbot.visibility_mode,
+            ) {
+                self.send_config();
+            }
+
             if checkbox(
                 ui,
                 "Flash Check",

@@ -6,7 +6,7 @@ pub fn weapon_from_handle(handle: i32, cs2: &CS2) -> Option<Weapon> {
     if handle == 0 {
         return None;
     }
-    let index = handle as u64 & 0xFFF;
+    let index = handle as u64 & 0x7FFF;
     let entity = Player::get_client_entity(cs2, index)?;
     Some(weapon_from_entity(entity, cs2))
 }

@@ -27,6 +27,15 @@ pub struct Config {
     pub misc: UnsafeConfig,
     pub accent_color: Color32,
     pub fps: u32,
+    pub cache_hz: u32,
+    pub bvh_tps: u32,
+    pub bone_vis_hz: u32,
+    pub pixel_vis_hz: u32,
+    pub bhop_tps: u32,
+    pub aimbot_tps: u32,
+    pub trigger_tps: u32,
+    pub input_tps: u32,
+    pub graph_refresh_hz: u32,
     pub font: Font,
 }
 
@@ -39,6 +48,15 @@ impl Default for Config {
             misc: UnsafeConfig::default(),
             accent_color: Colors::BLUE,
             fps: 120,
+            cache_hz: 120,
+            bvh_tps: 120,
+            bone_vis_hz: 120,
+            pixel_vis_hz: 120,
+            bhop_tps: 120,
+            aimbot_tps: 120,
+            trigger_tps: 120,
+            input_tps: 120,
+            graph_refresh_hz: 30,
             font: Font::FiraSans,
         }
     }

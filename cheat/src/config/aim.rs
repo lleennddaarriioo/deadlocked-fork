@@ -29,6 +29,15 @@ impl WeaponConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, EnumIter)]
+pub enum VisibilityMode {
+    BoneLoS,
+    BoneFast,
+    PixelLoS,
+    Both,
+    Either,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AimbotConfig {
@@ -39,12 +48,15 @@ pub struct AimbotConfig {
     pub distance_adjusted_fov: bool,
     pub start_bullet: i32,
     pub visibility_check: bool,
+    pub visibility_mode: VisibilityMode,
     pub flash_check: bool,
     pub fov: f32,
     pub smooth: f32,
     pub inertia: f32,
     pub bones: Vec<Bones>,
+    pub bone_mode: BoneMode,
     pub targeting_mode: TargetingMode,
+    pub damage_threshold: f32,
 }
 
 impl Default for AimbotConfig {
@@ -57,6 +69,7 @@ impl Default for AimbotConfig {
             distance_adjusted_fov: true,
             start_bullet: 0,
             visibility_check: true,
+            visibility_mode: VisibilityMode::Either,
             flash_check: true,
             fov: 2.5,
             smooth: 5.0,
@@ -70,7 +83,9 @@ impl Default for AimbotConfig {
                 Bones::Spine1,
                 Bones::Hip,
             ],
+            bone_mode: BoneMode::Nearest,
             targeting_mode: TargetingMode::Fov,
+            damage_threshold: 0.0,
         }
     }
 }
@@ -100,6 +115,12 @@ pub enum KeyMode {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumIter)]
+pub enum BoneMode {
+    Nearest,
+    Priority,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumIter)]
 pub enum TargetingMode {
     Fov,
     Distance,
@@ -113,11 +134,15 @@ pub struct TriggerbotConfig {
     pub delay: RangeInclusive<u64>,
     pub shot_duration: u64,
     pub mode: KeyMode,
+    pub visibility_check: bool,
+    pub visibility_mode: VisibilityMode,
     pub flash_check: bool,
     pub scope_check: bool,
     pub velocity_check: bool,
     pub velocity_threshold: f32,
     pub head_only: bool,
+    pub hit_chance: f32,
+    pub damage_threshold: f32,
 }
 
 impl Default for TriggerbotConfig {
@@ -128,11 +153,15 @@ impl Default for TriggerbotConfig {
             delay: 100..=200,
             shot_duration: 200,
             mode: KeyMode::Hold,
+            visibility_check: true,
+            visibility_mode: VisibilityMode::Either,
             flash_check: true,
             scope_check: true,
             velocity_check: true,
             velocity_threshold: 100.0,
             head_only: false,
+            hit_chance: 1.0,
+            damage_threshold: 0.0,
         }
     }
 }
@@ -142,6 +171,8 @@ impl Default for TriggerbotConfig {
 pub struct AimConfig {
     pub aimbot_hotkey: KeyCode,
     pub triggerbot_hotkey: KeyCode,
+    pub triggerbot_hotkey2: KeyCode,
+    pub auto_pistol: bool,
     pub global: WeaponConfig,
     pub weapons: HashMap<Weapon, WeaponConfig>,
 }
@@ -156,6 +187,8 @@ impl Default for AimConfig {
         Self {
             aimbot_hotkey: KeyCode::Mouse5,
             triggerbot_hotkey: KeyCode::Mouse4,
+            triggerbot_hotkey2: KeyCode::LeftAlt,
+            auto_pistol: false,
             global: WeaponConfig::enabled(true),
             weapons,
         }

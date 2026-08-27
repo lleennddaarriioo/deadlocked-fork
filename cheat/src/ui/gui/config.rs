@@ -127,6 +127,7 @@ impl App {
             self.available_configs = available_configs();
             self.current_config = self.available_configs[0].clone();
             self.config = parse_config(&self.current_config);
+            self.send_config();
         }
     }
 }

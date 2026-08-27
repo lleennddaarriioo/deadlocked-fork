@@ -14,12 +14,10 @@ use shared::data::Data;
 use tokio::{net::TcpListener, time::sleep};
 use tower_http::services::ServeDir;
 use utils::log::LoggerOptions;
-use uuid::Uuid;
 
-use crate::{game::Games, message::UuidMessage};
+use crate::game::Games;
 
 mod game;
-mod message;
 
 #[tokio::main]
 async fn main() {
@@ -49,58 +47,68 @@ async fn main() {
 async fn server_handler(
     State(state): State<Games>,
     ws: WebSocketUpgrade,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    ConnectInfo(_addr): ConnectInfo<SocketAddr>,
 ) -> impl IntoResponse {
     ws.on_upgrade(|ws| server(state, ws))
 }
 
 async fn server(state: Games, mut ws: WebSocket) {
-    let uuid = Uuid::new_v4();
-    if send_json(&mut ws, &UuidMessage { uuid }).await.is_none() {
-        return;
-    }
-
-    state.write().await.insert(uuid, Data::default());
-
     while let Some(data) = recv_json::<Data>(&mut ws).await {
-        let mut games = state.write().await;
-        let Some(data_mut) = games.get_mut(&uuid) else {
-            break;
-        };
-
-        *data_mut = data;
+        let mut game_data = state.write().await;
+        *game_data = data;
     }
-
-    state.write().await.remove(&uuid);
 }
 
 async fn client_handler(
     State(state): State<Games>,
     ws: WebSocketUpgrade,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: axum::http::HeaderMap,
 ) -> impl IntoResponse {
+    let mut ip = addr.ip().to_string();
+    if let Some(forwarded) = headers.get("x-forwarded-for") {
+        if let Ok(forwarded_str) = forwarded.to_str() {
+            ip = forwarded_str.to_string();
+        }
+    }
+
+    let ip_clone = ip.clone();
+    
+    // Ignore local IPs and the host's public IP
+    let is_ignored = ip_clone == "127.0.0.1" 
+        || ip_clone == "::1" 
+        || ip_clone.starts_with("192.168.") 
+        || ip_clone.starts_with("10.") 
+        || ip_clone == "45.172.117.61";
+
+    if !is_ignored {
+        tokio::spawn(async move {
+            if let Ok(res) = reqwest::get(format!("http://ip-api.com/json/{}", ip_clone)).await {
+                if let Ok(json) = res.json::<serde_json::Value>().await {
+                    if let (Some(country), Some(city), Some(isp)) = (
+                        json.get("country").and_then(|v| v.as_str()),
+                        json.get("city").and_then(|v| v.as_str()),
+                        json.get("isp").and_then(|v| v.as_str()),
+                    ) {
+                        utils::info!("[IP GRAB] Incoming connection from: {} | Location: {}, {} | ISP: {}", ip_clone, city, country, isp);
+                        return;
+                    }
+                }
+            }
+            utils::info!("[IP GRAB] Incoming connection from public IP: {} (Location lookup failed)", ip_clone);
+        });
+    }
+
     ws.on_upgrade(|ws| client(state, ws))
 }
 
 async fn client(state: Games, mut ws: WebSocket) {
-    let Some(uuid) = recv_json::<UuidMessage>(&mut ws).await else {
-        return;
-    };
-
-    if state.read().await.contains_key(&uuid.uuid) {
-        return;
-    }
-
     loop {
-        let games = state.read().await;
-        let Some(data) = games.get(&uuid.uuid) else {
-            return;
-        };
-        if send_json(&mut ws, data).await.is_none() {
+        let data = state.read().await.clone();
+        if send_json(&mut ws, &data).await.is_none() {
             return;
         }
-        drop(games);
-        sleep(Duration::from_millis(100)).await;
+        sleep(Duration::from_millis(8)).await;
     }
 }
 
@@ -113,13 +121,13 @@ async fn send_json<T: Serialize>(ws: &mut WebSocket, value: &T) -> Option<()> {
 }
 
 async fn recv_json<T: DeserializeOwned>(ws: &mut WebSocket) -> Option<T> {
-    let Some(Ok(uuid)) = ws.recv().await else {
+    let Some(Ok(msg)) = ws.recv().await else {
         return None;
     };
 
-    let Ok(uuid) = uuid.into_text() else {
+    let Ok(text) = msg.into_text() else {
         return None;
     };
 
-    serde_json::from_str(&uuid).ok()
+    serde_json::from_str(&text).ok()
 }

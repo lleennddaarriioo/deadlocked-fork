@@ -72,6 +72,7 @@ pub struct Triangle {
     pub v0: Vec3,
     pub v1: Vec3,
     pub v2: Vec3,
+    pub material: u8,
 }
 
 impl Triangle {
@@ -137,6 +138,10 @@ pub struct Bvh {
 }
 
 impl Bvh {
+    pub fn all_triangles(&self) -> &Vec<Triangle> {
+        &self.triangles
+    }
+
     pub fn new() -> Self {
         Self {
             nodes: Vec::new(),
@@ -237,6 +242,119 @@ impl Bvh {
         let node = BvhNode::Branch { left, right, aabb };
         self.nodes.push(node);
         self.nodes.len() - 1
+    }
+
+    pub fn raycast(&self, origin: Vec3, direction: Vec3, min_t: f32, max_t: f32) -> Option<(f32, &Triangle)> {
+        let inv_dir = 1.0 / direction;
+        if let Some(root) = self.root {
+            let mut closest_t = max_t;
+            let mut closest_tri = None;
+            self.raycast_node(root, origin, direction, inv_dir, min_t, &mut closest_t, &mut closest_tri);
+            if let Some(tri) = closest_tri {
+                Some((closest_t, tri))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn wall_thickness(&self, start: Vec3, end: Vec3) -> (f32, usize) {
+        let dir = end - start;
+        let distance = dir.length();
+        if distance < 1e-4 {
+            return (0.0, 0);
+        }
+        let dir_norm = dir / distance;
+        let inv_dir = 1.0 / dir_norm;
+
+        let mut intersections = Vec::new();
+        if let Some(root) = self.root {
+            self.collect_intersections(root, start, dir_norm, inv_dir, distance, &mut intersections);
+        }
+
+        if intersections.len() < 2 {
+            return (0.0, 0);
+        }
+
+        intersections.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        intersections.dedup_by(|a, b| (*a - *b).abs() < 0.01);
+
+        let mut total_thickness = 0.0;
+        let mut i = 0;
+        while i + 1 < intersections.len() {
+            total_thickness += intersections[i + 1] - intersections[i];
+            i += 2;
+        }
+        (total_thickness, intersections.len() / 2)
+    }
+
+    fn collect_intersections(
+        &self,
+        node_idx: usize,
+        origin: Vec3,
+        direction: Vec3,
+        inv_dir: Vec3,
+        max_t: f32,
+        intersections: &mut Vec<f32>,
+    ) {
+        let node = &self.nodes[node_idx];
+
+        if !node.aabb().ray_intersect(origin, inv_dir, max_t) {
+            return;
+        }
+
+        match node {
+            BvhNode::Leaf { primitives, .. } => {
+                for &idx in primitives {
+                    if let Some((t, _, _)) = self.triangles[idx].ray_intersect(origin, direction) {
+                        if t >= 0.0 && t <= max_t {
+                            intersections.push(t);
+                        }
+                    }
+                }
+            }
+            BvhNode::Branch { left, right, .. } => {
+                self.collect_intersections(*left, origin, direction, inv_dir, max_t, intersections);
+                self.collect_intersections(*right, origin, direction, inv_dir, max_t, intersections);
+            }
+        }
+    }
+
+    fn raycast_node<'a>(
+        &'a self,
+        node_idx: usize,
+        origin: Vec3,
+        direction: Vec3,
+        inv_dir: Vec3,
+        min_t: f32,
+        closest_t: &mut f32,
+        closest_tri: &mut Option<&'a Triangle>,
+    ) {
+        let node = &self.nodes[node_idx];
+
+        if !node.aabb().ray_intersect(origin, inv_dir, *closest_t) {
+            return;
+        }
+
+        match node {
+            BvhNode::Leaf { primitives, .. } => {
+                for &idx in primitives {
+                    let tri = &self.triangles[idx];
+                    if let Some((t, _, _)) = tri.ray_intersect(origin, direction) {
+                        if t >= min_t && t < *closest_t {
+                            *closest_t = t;
+                            *closest_tri = Some(tri);
+                        }
+                    }
+                }
+            }
+            BvhNode::Branch { left, right, .. } => {
+                self.raycast_node(*left, origin, direction, inv_dir, min_t, closest_t, closest_tri);
+                self.raycast_node(*right, origin, direction, inv_dir, min_t, closest_t, closest_tri);
+            }
+        }
     }
 
     pub fn has_line_of_sight(&self, start: Vec3, end: Vec3) -> bool {

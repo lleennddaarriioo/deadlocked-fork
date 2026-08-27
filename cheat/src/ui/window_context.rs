@@ -118,9 +118,10 @@ impl WindowContext {
         };
         let gl_context = not_current_gl_context.make_current(&gl_surface).unwrap();
 
-        gl_surface
-            .set_swap_interval(&gl_context, glutin::surface::SwapInterval::DontWait)
-            .unwrap();
+        let _ = gl_surface.set_swap_interval(
+            &gl_context,
+            glutin::surface::SwapInterval::DontWait,
+        );
 
         if overlay {
             window.set_cursor_hittest(false).unwrap();

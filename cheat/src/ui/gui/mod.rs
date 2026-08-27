@@ -17,9 +17,11 @@ mod helpers;
 mod hud;
 mod player;
 mod r#unsafe;
+mod telemetry;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Default)]
 pub enum Tab {
+    #[default]
     Aimbot,
     Player,
     Hud,
@@ -27,10 +29,11 @@ pub enum Tab {
     Unsafe,
     Config,
     Application,
+    Telemetry,
 }
 
 impl App {
-    pub fn send_config(&self) {
+    pub fn send_config(&mut self) {
         self.send_message(GameMessage(Box::new(self.config.clone())));
         self.save();
     }
@@ -47,9 +50,26 @@ impl App {
 
     fn gui(&mut self, ui: &mut Ui) {
         ui.ctx().set_pixels_per_point(self.display_scale);
+        
+        // Ensure image loaders are installed so egui can decode the compiled PNG
+        egui_extras::install_image_loaders(ui.ctx());
+
         egui::Panel::left("sidebar")
             .resizable(false)
             .show_inside(ui, |ui| {
+                // Display the Deadlocked Logo
+                ui.add_space(8.0);
+                ui.vertical_centered(|ui| {
+                    ui.add(
+                        egui::Image::new(egui::include_image!("logo.svg"))
+                            .max_width(120.0)
+                            .max_height(48.0)
+                    );
+                });
+                ui.add_space(8.0);
+                ui.separator();
+                ui.add_space(4.0);
+
                 ui.selectable_value(&mut self.current_tab, Tab::Aimbot, "\u{f04fe} Aimbot");
                 ui.selectable_value(&mut self.current_tab, Tab::Player, "\u{f0013} Player");
                 ui.selectable_value(&mut self.current_tab, Tab::Hud, "\u{f0379} Hud");
@@ -60,6 +80,11 @@ impl App {
                     &mut self.current_tab,
                     Tab::Application,
                     "\u{f1577} Application",
+                );
+                ui.selectable_value(
+                    &mut self.current_tab,
+                    Tab::Telemetry,
+                    "\u{f012} Telemetry",
                 );
 
                 ui.with_layout(egui::Layout::bottom_up(Align::Min), |ui| {
@@ -99,6 +124,7 @@ impl App {
             Tab::Unsafe => self.unsafe_settings(ui),
             Tab::Config => self.config_settings(ui),
             Tab::Application => self.application_settings(ui),
+            Tab::Telemetry => self.telemetry_settings(ui),
         });
 
         if self.show_about {
@@ -119,6 +145,13 @@ impl App {
     }
 
     pub fn render(&mut self) {
+        let data = self.data.lock();
+        if data.total_damage > self.last_total_damage {
+            self.hit_marker_time = std::time::Instant::now();
+        }
+        self.last_total_damage = data.total_damage;
+        drop(data);
+
         let self_ptr = self as *mut Self;
 
         let gui = self.gui.as_mut().unwrap();

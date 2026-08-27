@@ -14,6 +14,8 @@ mod math;
 mod message;
 mod os;
 mod parser;
+mod profiler;
+mod radar;
 mod ui;
 
 #[cfg(not(target_os = "linux"))]
@@ -58,6 +60,11 @@ fn main() {
         }
     };
     event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
+    
+    let data_radar = data.clone();
     let mut app = App::new(channel_gui, data);
+
+    radar::start_radar_thread(data_radar);
+
     event_loop.run_app(&mut app).unwrap();
 }

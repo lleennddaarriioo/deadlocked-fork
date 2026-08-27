@@ -25,6 +25,7 @@ pub struct PlayerConfig {
     pub show_friendlies: bool,
     pub draw_box: DrawMode,
     pub box_mode: BoxMode,
+    pub draw_chams: bool,
     pub box_visible_color: Color32,
     pub box_invisible_color: Color32,
     pub draw_skeleton: DrawMode,
@@ -35,7 +36,9 @@ pub struct PlayerConfig {
     pub player_name: bool,
     pub weapon_icon: bool,
     pub tags: bool,
+    pub show_pixel_los: bool,
     pub visible_only: bool,
+    pub target_player_name: String,
     pub sound: SoundConfig,
 }
 
@@ -47,6 +50,7 @@ impl Default for PlayerConfig {
             show_friendlies: false,
             draw_box: DrawMode::Color,
             box_mode: BoxMode::Gap,
+            draw_chams: false,
             box_visible_color: Color32::WHITE,
             box_invisible_color: Color32::RED,
             draw_skeleton: DrawMode::Health,
@@ -57,7 +61,9 @@ impl Default for PlayerConfig {
             player_name: true,
             weapon_icon: true,
             tags: true,
+            show_pixel_los: true,
             visible_only: false,
+            target_player_name: String::new(),
             sound: SoundConfig::default(),
         }
     }

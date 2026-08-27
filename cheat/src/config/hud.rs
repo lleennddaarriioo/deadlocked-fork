@@ -9,7 +9,9 @@ pub struct HudConfig {
     pub bomb_timer: bool,
     pub fov_circle: bool,
     pub sniper_crosshair: CrosshairConfig,
+    pub recoil_crosshair: CrosshairConfig,
     pub dropped_weapons: bool,
+    pub item_esp_hotkey: crate::cs2::key_codes::KeyCode,
     pub keybind_list: bool,
     pub spectator_list: bool,
     pub grenade_trails: TrailConfig,
@@ -19,6 +21,12 @@ pub struct HudConfig {
     pub font_size: f32,
     pub icon_size: f32,
     pub debug: bool,
+    pub raycast_debug: bool,
+    pub hit_marker: bool,
+    pub spread_circle: bool,
+    pub spread_circle_color: Color32,
+    pub overlay_offset_x: i32,
+    pub overlay_offset_y: i32,
 }
 
 impl Default for HudConfig {
@@ -27,7 +35,9 @@ impl Default for HudConfig {
             bomb_timer: true,
             fov_circle: false,
             sniper_crosshair: CrosshairConfig::default(),
+            recoil_crosshair: CrosshairConfig::default(),
             dropped_weapons: true,
+            item_esp_hotkey: crate::cs2::key_codes::KeyCode::None,
             keybind_list: false,
             spectator_list: false,
             grenade_trails: TrailConfig::default(),
@@ -37,6 +47,12 @@ impl Default for HudConfig {
             font_size: 16.0,
             icon_size: 20.0,
             debug: false,
+            raycast_debug: false,
+            hit_marker: false,
+            spread_circle: false,
+            spread_circle_color: Color32::from_rgba_premultiplied(255, 255, 255, 120),
+            overlay_offset_x: 0,
+            overlay_offset_y: 0,
         }
     }
 }

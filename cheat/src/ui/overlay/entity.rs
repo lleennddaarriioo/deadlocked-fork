@@ -19,7 +19,10 @@ impl App {
                 position,
                 ammo,
             } => {
-                if !self.config.hud.dropped_weapons {
+                if !self.config.hud.dropped_weapons
+                    || !data.item_esp_active
+                    || weapon == &shared::weapon::Weapon::Unknown
+                {
                     return;
                 }
                 let Some(position) = world_to_screen(position, data) else {
@@ -32,7 +35,7 @@ impl App {
                     Align2::CENTER_CENTER,
                     None,
                 );
-                if ammo.0 >= 0 {
+                if ammo.0 >= 0 && ammo.0 <= 250 && ammo.1 >= 0 && ammo.1 <= 1000 {
                     self.text(
                         painter,
                         format!("{}/{}", ammo.0, ammo.1),

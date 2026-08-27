@@ -81,6 +81,10 @@ impl App {
                 self.send_config();
             }
 
+            if checkbox(ui, "Draw Chams", &mut self.config.player.draw_chams) {
+                self.send_config();
+            }
+
             if checkbox(ui, "Head Circle", &mut self.config.player.head_circle) {
                 self.send_config();
             }
@@ -132,6 +136,20 @@ impl App {
             {
                 self.send_config();
             }
+
+            if ui
+                .checkbox(&mut self.config.player.show_pixel_los, "Pixel LoS Status")
+                .changed()
+            {
+                self.send_config();
+            }
+
+            ui.horizontal(|ui| {
+                ui.label("Target Name:");
+                if ui.text_edit_singleline(&mut self.config.player.target_player_name).changed() {
+                    self.send_config();
+                }
+            });
         });
 
         ui.collapsing("Sound ESP", |ui| {

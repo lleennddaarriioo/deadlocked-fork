@@ -62,12 +62,11 @@ impl CS2 {
         let mut best_distance = f32::MAX;
         let eye_position = local_player.eye_position(self);
 
-        if self.target.player.is_none() {
-            self.target.reset();
-        }
-        if let Some(player) = &self.target.player
-            && !player.is_valid(self)
-        {
+        if let Some(player) = &self.target.player {
+            if !player.is_valid(self) || (aimbot_config.visibility_check && !player.is_visible_mode(self, &local_player, aimbot_config.visibility_mode)) {
+                self.target.reset();
+            }
+        } else {
             self.target.reset();
         }
 
@@ -80,6 +79,10 @@ impl CS2 {
 
         for player in &self.players {
             if !(ffa || target_friendlies) && team == player.team(self) {
+                continue;
+            }
+
+            if aimbot_config.visibility_check && !player.is_visible_mode(self, &local_player, aimbot_config.visibility_mode) {
                 continue;
             }
 

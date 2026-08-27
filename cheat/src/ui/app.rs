@@ -60,6 +60,25 @@ pub struct App {
     pub current_tab: Tab,
     pub aimbot_tab: AimbotTab,
     pub aimbot_weapon: Weapon,
+    
+    pub hit_marker_time: Instant,
+    pub last_total_damage: u32,
+    pub last_pie_chart_update: Instant,
+    pub smoothed_telemetry: Option<crate::game::TelemetryData>,
+    pub max_monitor_hz: u32,
+
+    pub thread_history_bhop: VecDeque<f32>,
+    pub thread_history_aimbot: VecDeque<f32>,
+    pub thread_history_trigger: VecDeque<f32>,
+    pub thread_history_input: VecDeque<f32>,
+    pub thread_history_bvh: VecDeque<f32>,
+    pub thread_history_cache: VecDeque<f32>,
+    pub thread_history_gui: VecDeque<f32>,
+    pub thread_history_other: VecDeque<f32>,
+    pub thread_history_loop: VecDeque<f32>,
+
+    pub last_overlay_pos: Option<(i32, i32)>,
+    pub last_overlay_size: Option<(u32, u32)>,
 }
 
 impl App {
@@ -98,11 +117,29 @@ impl App {
             new_grenade: Grenade::new(),
             current_grenade: None,
 
-            current_tab: Tab::Aimbot,
-            aimbot_tab: AimbotTab::Global,
-            aimbot_weapon: Weapon::Ak47,
+            current_tab: Tab::default(),
+            aimbot_tab: AimbotTab::default(),
+            aimbot_weapon: Weapon::default(),
+            
+            hit_marker_time: Instant::now() - Duration::from_secs(10),
+            last_total_damage: 0,
+            last_pie_chart_update: Instant::now(),
+            smoothed_telemetry: None,
+            max_monitor_hz: 240,
+
+            thread_history_bhop: VecDeque::with_capacity(60),
+            thread_history_aimbot: VecDeque::with_capacity(60),
+            thread_history_trigger: VecDeque::with_capacity(60),
+            thread_history_input: VecDeque::with_capacity(60),
+            thread_history_bvh: VecDeque::with_capacity(60),
+            thread_history_cache: VecDeque::with_capacity(60),
+            thread_history_gui: VecDeque::with_capacity(60),
+            thread_history_other: VecDeque::with_capacity(60),
+            thread_history_loop: VecDeque::with_capacity(60),
+
+            last_overlay_pos: None,
+            last_overlay_size: None,
         };
-        ret.send_config();
         ret
     }
 
@@ -121,7 +158,29 @@ impl App {
     }
 
     fn frame_duration(&self) -> Duration {
-        Duration::from_secs_f32(1.0 / self.config.fps as f32)
+        let ui_fps = self.config.fps.min(self.max_monitor_hz).max(1);
+        Duration::from_secs_f32(1.0 / ui_fps as f32)
+    }
+
+    pub fn detect_highest_monitor_hz(event_loop: &winit::event_loop::ActiveEventLoop) -> u32 {
+        let mut max_hz = 60u32;
+        for monitor in event_loop.available_monitors() {
+            if let Some(mhz) = monitor.refresh_rate_millihertz() {
+                let hz = (mhz as f32 / 1000.0).round() as u32;
+                if hz > max_hz {
+                    max_hz = hz;
+                }
+            }
+            for mode in monitor.video_modes() {
+                let mhz = mode.refresh_rate_millihertz();
+                let hz = (mhz as f32 / 1000.0).round() as u32;
+                if hz > max_hz {
+                    max_hz = hz;
+                }
+            }
+        }
+        utils::info!("Detected highest monitor VSync refresh rate: {} Hz", max_hz);
+        max_hz
     }
 }
 
@@ -145,6 +204,8 @@ impl ApplicationHandler for App {
 
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         self.create_window(event_loop);
+        self.max_monitor_hz = Self::detect_highest_monitor_hz(event_loop);
+        self.send_config();
 
         self.next_frame_time = Instant::now() + self.frame_duration();
         event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(

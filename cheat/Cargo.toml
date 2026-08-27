@@ -10,6 +10,8 @@ glam.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 strum.workspace = true
+tungstenite.workspace = true
+url.workspace = true
 bytemuck = "1.24"
 egui = "0.34"
 egui_glow = { version = "0.34", features = ["winit"] }
@@ -29,6 +31,11 @@ rand_distr = "0.6"
 toml = "1.0"
 uuid = { version = "1.18", features = ["v4", "serde"] }
 winit = { version = "0.30", default-features = false, features = ["x11"] }
+vpk = "0.3.0"
+egui_extras = { version = "0.34", features = ["image", "all_loaders"] }
+image = { version = "0.25", features = ["png"] }
+rayon = "1.10"
+
 
 [features]
 read-only = []

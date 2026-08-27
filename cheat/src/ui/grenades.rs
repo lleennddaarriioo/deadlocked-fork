@@ -38,7 +38,20 @@ pub struct GrenadeModifiers {
     pub run: bool,
 }
 
+use std::sync::Mutex;
+use std::time::Instant;
+
+static GRENADE_CACHE: Mutex<Option<(Instant, GrenadeList)>> = Mutex::new(None);
+
 pub fn read_grenades() -> GrenadeList {
+    if let Ok(guard) = GRENADE_CACHE.lock() {
+        if let Some((time, ref list)) = *guard {
+            if time.elapsed() < std::time::Duration::from_secs(2) {
+                return list.clone();
+            }
+        }
+    }
+
     let path = BASE_PATH.join(GRENADE_FILE_NAME);
     if !path.exists() {
         utils::info!("no grenade list found");
@@ -46,15 +59,20 @@ pub fn read_grenades() -> GrenadeList {
     }
 
     let grenade_list_file = read_to_string(path).unwrap();
-    let grenade_list = serde_json::from_str(&grenade_list_file);
-    if grenade_list.is_err() {
-        utils::warn!("grenade list file invalid");
+    let grenade_list: GrenadeList = serde_json::from_str(&grenade_list_file).unwrap_or_default();
+    
+    if let Ok(mut guard) = GRENADE_CACHE.lock() {
+        *guard = Some((Instant::now(), grenade_list.clone()));
     }
-    grenade_list.unwrap_or_default()
+
+    grenade_list
 }
 
 pub fn write_grenades(grenades: &GrenadeList) {
     let out = serde_json::to_string(grenades).unwrap();
     let path = BASE_PATH.join(GRENADE_FILE_NAME);
     std::fs::write(path, out).unwrap();
+    if let Ok(mut guard) = GRENADE_CACHE.lock() {
+        *guard = None;
+    }
 }

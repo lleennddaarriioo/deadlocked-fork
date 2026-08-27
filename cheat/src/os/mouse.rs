@@ -89,6 +89,7 @@ const EV_REL: u16 = 0x02;
 const SYN_REPORT: u16 = 0x00;
 const AXIS_X: u16 = 0x00;
 const AXIS_Y: u16 = 0x01;
+const REL_WHEEL: u16 = 0x08;
 const BTN_LEFT: u16 = 0x110;
 
 pub struct Mouse {
@@ -115,6 +116,7 @@ impl Mouse {
 
             ui_set_relbit(fd, AXIS_X as u64).map_err(|e| e.to_string())?;
             ui_set_relbit(fd, AXIS_Y as u64).map_err(|e| e.to_string())?;
+            ui_set_relbit(fd, REL_WHEEL as u64).map_err(|e| e.to_string())?;
 
             ui_set_keybit(fd, BTN_LEFT as u64).map_err(|e| e.to_string())?;
 
@@ -155,11 +157,19 @@ impl Mouse {
             value: 0,
         };
 
-        self.file.write_all(&x.bytes()).unwrap();
-        self.file.write_all(&syn.bytes()).unwrap();
+        if let Err(e) = self.file.write_all(&x.bytes()) {
+            eprintln!("[MOUSE-ERROR] Failed to write X relative movement to /dev/uinput: {}", e);
+        }
+        if let Err(e) = self.file.write_all(&syn.bytes()) {
+            eprintln!("[MOUSE-ERROR] Failed to write SYN event to /dev/uinput: {}", e);
+        }
 
-        self.file.write_all(&y.bytes()).unwrap();
-        self.file.write_all(&syn.bytes()).unwrap();
+        if let Err(e) = self.file.write_all(&y.bytes()) {
+            eprintln!("[MOUSE-ERROR] Failed to write Y relative movement to /dev/uinput: {}", e);
+        }
+        if let Err(e) = self.file.write_all(&syn.bytes()) {
+            eprintln!("[MOUSE-ERROR] Failed to write SYN event to /dev/uinput: {}", e);
+        }
     }
 
     pub fn left_press(&mut self) {
@@ -168,6 +178,32 @@ impl Mouse {
 
     pub fn left_release(&mut self) {
         self.key(0);
+    }
+
+    #[allow(dead_code)]
+    pub fn scroll_down(&mut self) {
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+        let time = Timeval {
+            seconds: now.as_secs(),
+            microseconds: now.subsec_micros() as u64,
+        };
+
+        let ev = InputEvent {
+            time,
+            event_type: EV_REL,
+            code: REL_WHEEL,
+            value: -1,
+        };
+
+        let syn = InputEvent {
+            time,
+            event_type: EV_SYN,
+            code: SYN_REPORT,
+            value: 0,
+        };
+
+        self.file.write_all(&ev.bytes()).unwrap();
+        self.file.write_all(&syn.bytes()).unwrap();
     }
 
     fn key(&mut self, pressed: i32) {

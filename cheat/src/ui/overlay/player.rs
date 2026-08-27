@@ -28,6 +28,7 @@ impl App {
         };
 
         self.player_box(painter, player, data, sound_alpha);
+        self.chams(painter, player, data, sound_alpha);
         self.skeleton(painter, player, data, sound_alpha);
     }
 
@@ -213,6 +214,50 @@ impl App {
             offset += font_size;
         }
 
+        if self.config.player.show_pixel_los {
+            let (bone_text, bone_color) = if player.visible {
+                ("[BONE VIS]", Color32::from_rgb(50, 255, 100))
+            } else {
+                ("[BONE BLIND]", Color32::from_rgb(255, 100, 100))
+            };
+            self.text_sized(
+                painter,
+                bone_text,
+                pos2(tr.x + ew, tr.y + offset),
+                Align2::LEFT_TOP,
+                Some(Self::alpha(bone_color, alpha)),
+                font_size * 0.9,
+            );
+            offset += font_size * 0.9;
+
+            let (pixel_text, pixel_color) = if player.pixel_visible {
+                ("[PIXEL VIS]", Color32::from_rgb(50, 255, 100))
+            } else {
+                ("[PIXEL BLIND]", Color32::from_rgb(255, 100, 100))
+            };
+            self.text_sized(
+                painter,
+                pixel_text,
+                pos2(tr.x + ew, tr.y + offset),
+                Align2::LEFT_TOP,
+                Some(Self::alpha(pixel_color, alpha)),
+                font_size * 0.9,
+            );
+            offset += font_size * 0.9;
+        }
+
+        if player.is_defusing {
+            self.text_sized(
+                painter,
+                "DEFUSING",
+                pos2(tr.x + ew, tr.y + offset),
+                Align2::LEFT_TOP,
+                Some(Color32::from_rgb(255, 50, 50)),
+                font_size,
+            );
+            offset += font_size;
+        }
+
         if self.config.player.tags && player.has_defuser {
             self.text_sized(
                 painter,
@@ -257,7 +302,7 @@ impl App {
                 None,
                 icon_size,
             );
-            if player.ammo.0 >= 0 {
+            if player.ammo.0 >= 0 && player.ammo.0 <= 250 && player.ammo.1 >= 0 && player.ammo.1 <= 1000 {
                 self.text_sized(
                     painter,
                     format!("{}/{}", player.ammo.0, player.ammo.1),
@@ -329,6 +374,59 @@ impl App {
         let height = spine.y - neck.y;
         let pos = pos2(neck.x - (spine.x - neck.x) / 2.0, neck.y - height / 2.0);
         painter.circle_stroke(pos, height / 2.0, stroke);
+    }
+
+    fn chams(&self, painter: &Painter, player: &PlayerData, data: &Data, alpha: Option<f32>) {
+        if !self.config.player.draw_chams {
+            return;
+        }
+
+        let visible_color = self.config.player.box_visible_color;
+        let invisible_color = self.config.player.box_invisible_color;
+
+        let get_color = |visible: bool| -> Color32 {
+            let mut c = if visible { visible_color } else { invisible_color };
+            if let Some(alpha) = alpha {
+                c = Self::alpha(c, alpha);
+            }
+            c
+        };
+
+        // Project top (head + padding) and bottom (feet) to screen
+        let midpoint = (player.position + player.head) / 2.0;
+        let height = player.head.z - player.position.z + 24.0;
+        let half_height = height / 2.0;
+        let top_3d = midpoint + vec3(0.0, 0.0, half_height);
+        let bottom_3d = midpoint - vec3(0.0, 0.0, half_height);
+
+        let Some(top) = world_to_screen(&top_3d, data) else { return };
+        let Some(bottom) = world_to_screen(&bottom_3d, data) else { return };
+
+        let box_h = (bottom.y - top.y).abs();
+        if box_h < 2.0 { return; }
+        if player.chams_segments.is_empty() { return; }
+
+        for &(start_3d, end_3d, is_vis, thickness_mult) in &player.chams_segments {
+            if let (Some(start_2d), Some(end_2d)) = (world_to_screen(&start_3d, data), world_to_screen(&end_3d, data)) {
+                let thickness = (box_h * 0.05 * thickness_mult).max(2.0);
+                painter.line_segment(
+                    [pos2(start_2d.x, start_2d.y), pos2(end_2d.x, end_2d.y)],
+                    egui::Stroke::new(thickness, get_color(is_vis)),
+                );
+            }
+        }
+
+        // Draw a solid circle for the head
+        let head_3d = player.head;
+        if let Some(head_2d) = world_to_screen(&head_3d, data) {
+            let is_head_vis = *player.visible_bones.get(&shared::bones::Bones::Head).unwrap_or(&player.visible);
+            let head_radius = (box_h * 0.07).max(4.0);
+            painter.circle_filled(
+                pos2(head_2d.x, head_2d.y),
+                head_radius,
+                get_color(is_head_vis),
+            );
+        }
     }
 
     pub fn update_player_sounds(&mut self) {

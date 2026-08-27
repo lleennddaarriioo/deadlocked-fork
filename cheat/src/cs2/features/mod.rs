@@ -4,3 +4,7 @@ mod fov_changer;
 mod no_flash;
 pub mod rcs;
 pub mod triggerbot;
+pub mod bhop;
+pub mod counter_strafe;
+pub mod mic_tone;
+pub mod pathfinding;

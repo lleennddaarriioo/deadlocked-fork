@@ -68,7 +68,10 @@ pub struct PawnOffsets {
     pub item_services: u64,       // Pointer -> ItemServices (m_pItemServices)
     pub weapon_services: u64,     // Pointer -> WeaponSercies (m_pWeaponServices)
     pub observer_services: u64,   // Pointer -> ObserverServices (m_pObserverServices)
+    pub is_defusing: u64,         // bool (m_bIsDefusing)
     pub aim_punch_services: u64,  // Pointer -> AimPunchServices (m_pAimPunchServices)
+    pub movement_services: u64,   // Pointer -> MovementServices (m_pMovementServices)
+    pub stamina: u64,             // f32 (m_flStamina inside MovementServices)
 }
 
 #[derive(Debug, Default)]
@@ -145,6 +148,7 @@ pub struct WeaponOffsets {
     pub item: u64,              // EconItemView (m_Item)
     pub clip_primary: u64,      // i32 (m_iClip1)
     pub reserve_ammo: u64,      // i32[2] (m_pReserveAmmo)
+    pub inaccuracy: u64,        // f32 (m_fAccuracyPenalty)
 }
 
 #[derive(Debug, Default)]

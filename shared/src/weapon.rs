@@ -124,3 +124,76 @@ impl std::fmt::Display for Weapon {
         write!(f, "{}", s)
     }
 }
+
+impl Weapon {
+    pub fn base_damage(&self) -> u32 {
+        match self {
+            Weapon::Knife => 40,
+            Weapon::Cz75A => 31,
+            Weapon::Deagle => 53,
+            Weapon::DualBerettas => 38,
+            Weapon::FiveSeven => 32,
+            Weapon::Glock => 28,
+            Weapon::P2000 => 26,
+            Weapon::P250 => 38,
+            Weapon::Revolver => 86,
+            Weapon::Tec9 => 33,
+            Weapon::Usp => 26,
+            Weapon::Bizon => 26,
+            Weapon::Mac10 => 29,
+            Weapon::Mp5Sd => 27,
+            Weapon::Mp7 => 29,
+            Weapon::Mp9 => 26,
+            Weapon::P90 => 26,
+            Weapon::Ump45 => 35,
+            Weapon::M249 => 32,
+            Weapon::Negev => 26,
+            Weapon::Mag7 => 30,
+            Weapon::Nova => 26,
+            Weapon::Sawedoff => 32,
+            Weapon::Xm1014 => 20,
+            Weapon::Ak47 => 36,
+            Weapon::Aug => 28,
+            Weapon::Famas => 30,
+            Weapon::Galilar => 30,
+            Weapon::M4A4 => 33,
+            Weapon::M4A1 => 38,
+            Weapon::Sg556 => 30,
+            Weapon::Awp => 115,
+            Weapon::G3SG1 => 80,
+            Weapon::Scar20 => 80,
+            Weapon::Ssg08 => 88,
+            Weapon::Taser => 100,
+            Weapon::HeGrenade => 98,
+            _ => 0,
+        }
+    }
+
+    pub fn damage_description(&self) -> String {
+        match self {
+            Weapon::Knife => "40 (stab: 55, backstab: 90)".to_string(),
+            Weapon::Mag7 => "30 x 8 pellets (240 max)".to_string(),
+            Weapon::Nova => "26 x 9 pellets (234 max)".to_string(),
+            Weapon::Sawedoff => "32 x 8 pellets (256 max)".to_string(),
+            Weapon::Xm1014 => "20 x 6 pellets (120 max)".to_string(),
+            Weapon::Taser => "100 (instant kill)".to_string(),
+            Weapon::HeGrenade => "Up to 98".to_string(),
+            Weapon::Unknown => "N/A".to_string(),
+            Weapon::Flashbang | Weapon::Smoke | Weapon::Decoy => "0".to_string(),
+            Weapon::Molotov | Weapon::Incendiary => "40/sec".to_string(),
+            w => w.base_damage().to_string(),
+        }
+    }
+
+    pub fn penetration(&self) -> f32 {
+        use Weapon::*;
+        match self {
+            Awp | G3SG1 | Scar20 => 2.5,
+            Ak47 | Aug | Famas | Galilar | M4A4 | M4A1 | Sg556 | Ssg08 | M249 | Negev | Deagle | Revolver => 2.0,
+            Cz75A | DualBerettas | FiveSeven | Glock | P2000 | P250 | Tec9 | Usp |
+            Bizon | Mac10 | Mp5Sd | Mp7 | Mp9 | P90 | Ump45 |
+            Mag7 | Nova | Sawedoff | Xm1014 => 1.0,
+            _ => 0.0,
+        }
+    }
+}
