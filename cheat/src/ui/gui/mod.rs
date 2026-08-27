@@ -221,9 +221,12 @@ impl App {
                     let _ = std::fs::create_dir_all("media/previews");
                     
                     utils::info!("Capturing Full HD screen screenshot for tab '{}' -> {}", tab_name, file_name);
+                    let wayland_disp = std::env::var("WAYLAND_DISPLAY").unwrap_or_else(|_| "wayland-1".to_string());
+                    let x_disp = std::env::var("DISPLAY").unwrap_or_else(|_| ":1".to_string());
+
                     let _ = std::process::Command::new("sh")
                         .arg("-c")
-                        .arg(format!("grim -g \"$(hyprctl clients -j 2>/dev/null | jq -r '.[] | select(.title==\"deadlocked\") | \"\\(.at[0]),\\(.at[1]) \\(.size[0])x\\(.size[1])\"' 2>/dev/null)\" '{file_name}' 2>/dev/null || grim '{file_name}' || spectacle -b -n -o '{file_name}' || import -window root '{file_name}'"))
+                        .arg(format!("GEOM=$(hyprctl clients -j 2>/dev/null | jq -r '.[] | select(.title==\"deadlocked\" and .size[0]>10) | \"\\(.at[0]),\\(.at[1]) \\(.size[0])x\\(.size[1])\"' 2>/dev/null | head -n 1); if [ -n \"$GEOM\" ] && [ \"$GEOM\" != \"null\" ]; then WAYLAND_DISPLAY='{wayland_disp}' grim -g \"$GEOM\" '{file_name}' 2>/dev/null; elif WIN_ID=$(xdotool search --name '^deadlocked$' 2>/dev/null | head -n 1) && [ -n \"$WIN_ID\" ]; then DISPLAY='{x_disp}' import -window \"$WIN_ID\" '{file_name}' 2>/dev/null; else WAYLAND_DISPLAY='{wayland_disp}' grim '{file_name}' 2>/dev/null; fi"))
                         .status();
 
                     self.demo_tab_idx += 1;

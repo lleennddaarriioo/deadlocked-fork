@@ -43,9 +43,7 @@ fn main() {
         return;
     }
 
-    // this runs as x11 for now, because wayland decorations for winit are not good
-    // and don't support disabling the maximize button
-    unsafe { std::env::remove_var("WAYLAND_DISPLAY") };
+    // Allow child processes to use WAYLAND_DISPLAY if set
 
     let (channel_gui, channel_game) = Channel::new();
     let data = Arc::new(Mutex::new(Data::default()));
