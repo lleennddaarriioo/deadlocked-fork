@@ -5,7 +5,7 @@ If you donot suport ai use or vibecoding just dont use it
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-git clone https://github.com/avitran0/deadlocked
+git clone https://github.com/lleennddaarriioo/deadlocked-fork
 cd deadlocked
 ./setup.sh
 # Restart your machine (required)
