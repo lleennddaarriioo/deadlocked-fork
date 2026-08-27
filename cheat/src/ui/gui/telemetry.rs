@@ -63,7 +63,6 @@ impl App {
                 self.config.bvh_tps = g_val;
                 self.config.input_tps = g_val;
                 self.config.bone_vis_hz = g_val;
-                self.config.pixel_vis_hz = g_val;
                 self.config.cache_hz = g_val.min(500);
                 self.send_config();
             }
@@ -80,7 +79,6 @@ impl App {
                 self.config.bvh_tps = g_val;
                 self.config.input_tps = g_val;
                 self.config.bone_vis_hz = g_val;
-                self.config.pixel_vis_hz = g_val;
                 self.config.cache_hz = g_val.min(500);
                 self.send_config();
             }
@@ -217,13 +215,6 @@ impl App {
                             self.send_config();
                         }
                         ui.label(egui::RichText::new("Thread 9 (Rayon Pool)").color(Color32::from_rgb(236, 72, 153)));
-                        ui.end_row();
-
-                        ui.label("👁️ Pixel Vis Checks:");
-                        if ui.add(DragValue::new(&mut self.config.pixel_vis_hz).range(1..=10000).speed(5.0).suffix(" Hz")).changed() {
-                            self.send_config();
-                        }
-                        ui.label(egui::RichText::new("Thread 10 (Main Thread)").color(Color32::from_rgb(14, 165, 233)));
                         ui.end_row();
                     });
             });

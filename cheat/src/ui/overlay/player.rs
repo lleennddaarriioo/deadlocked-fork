@@ -214,37 +214,7 @@ impl App {
             offset += font_size;
         }
 
-        if self.config.player.show_pixel_los {
-            let (bone_text, bone_color) = if player.visible {
-                ("[BONE VIS]", Color32::from_rgb(50, 255, 100))
-            } else {
-                ("[BONE BLIND]", Color32::from_rgb(255, 100, 100))
-            };
-            self.text_sized(
-                painter,
-                bone_text,
-                pos2(tr.x + ew, tr.y + offset),
-                Align2::LEFT_TOP,
-                Some(Self::alpha(bone_color, alpha)),
-                font_size * 0.9,
-            );
-            offset += font_size * 0.9;
 
-            let (pixel_text, pixel_color) = if player.pixel_visible {
-                ("[PIXEL VIS]", Color32::from_rgb(50, 255, 100))
-            } else {
-                ("[PIXEL BLIND]", Color32::from_rgb(255, 100, 100))
-            };
-            self.text_sized(
-                painter,
-                pixel_text,
-                pos2(tr.x + ew, tr.y + offset),
-                Align2::LEFT_TOP,
-                Some(Self::alpha(pixel_color, alpha)),
-                font_size * 0.9,
-            );
-            offset += font_size * 0.9;
-        }
 
         if player.is_defusing {
             self.text_sized(

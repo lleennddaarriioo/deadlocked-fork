@@ -137,13 +137,6 @@ impl App {
                 self.send_config();
             }
 
-            if ui
-                .checkbox(&mut self.config.player.show_pixel_los, "Pixel LoS Status")
-                .changed()
-            {
-                self.send_config();
-            }
-
             ui.horizontal(|ui| {
                 ui.label("Target Name:");
                 if ui.text_edit_singleline(&mut self.config.player.target_player_name).changed() {

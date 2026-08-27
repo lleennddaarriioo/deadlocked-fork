@@ -62,7 +62,6 @@ pub struct PlayerData {
     pub has_helmet: bool,
     pub has_bomb: bool,
     pub visible: bool,
-    pub pixel_visible: bool,
     pub color: i32,
     pub rotation: f32,
     pub sound: Option<SoundType>,

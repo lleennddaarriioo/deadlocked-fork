@@ -322,7 +322,6 @@ impl CS2 {
                 let bone_pos = p.bone_position(self, bone.u64());
 
                 if config.visibility_check {
-                    let pixel_vis = p.is_pixel_visible(self);
                     let bone_vis = if let Some(bvh) = &self.bvh {
                         bvh.has_line_of_sight(eye_pos, bone_pos)
                     } else {
@@ -331,9 +330,6 @@ impl CS2 {
 
                     let is_vis = match config.visibility_mode {
                         crate::config::aim::VisibilityMode::BoneLoS | crate::config::aim::VisibilityMode::BoneFast => bone_vis,
-                        crate::config::aim::VisibilityMode::PixelLoS => pixel_vis,
-                        crate::config::aim::VisibilityMode::Both => bone_vis && pixel_vis,
-                        crate::config::aim::VisibilityMode::Either => bone_vis || pixel_vis,
                     };
 
                     if !is_vis {

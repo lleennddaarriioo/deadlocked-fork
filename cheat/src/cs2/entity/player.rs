@@ -508,44 +508,19 @@ impl Player {
         }
     }
 
-    pub fn is_pixel_visible_uncached(&self, cs2: &CS2) -> bool {
-        let spotted_mask = self.spotted_mask(cs2);
-        (spotted_mask & (1 << cs2.target.local_pawn_index)) != 0
-    }
 
-    pub fn is_pixel_visible(&self, cs2: &CS2) -> bool {
-        let steam_id = self.steam_id(cs2);
-        if let Some(&cached) = cs2.cached_pixel_vis.get(&steam_id) {
-            return cached;
-        }
-
-        self.is_pixel_visible_uncached(cs2)
-    }
 
     pub fn is_visible_mode(
         &self,
         cs2: &CS2,
         local_player: &Player,
-        mode: crate::config::aim::VisibilityMode,
+        _mode: crate::config::aim::VisibilityMode,
     ) -> bool {
-        use crate::config::aim::VisibilityMode;
-        let bone_vis = self.is_bone_visible(cs2, local_player);
-        let pixel_vis = self.is_pixel_visible(cs2);
-
-        match mode {
-            VisibilityMode::BoneLoS | VisibilityMode::BoneFast => bone_vis,
-            VisibilityMode::PixelLoS => pixel_vis,
-            VisibilityMode::Both => bone_vis && pixel_vis,
-            VisibilityMode::Either => bone_vis || pixel_vis,
-        }
+        self.is_bone_visible(cs2, local_player)
     }
 
     pub fn visible(&self, cs2: &CS2, local_player: &Player) -> bool {
-        if cs2.bvh.is_some() {
-            self.is_bone_visible(cs2, local_player)
-        } else {
-            self.is_pixel_visible(cs2)
-        }
+        self.is_bone_visible(cs2, local_player)
     }
 
     pub fn crosshair_entity(&self, cs2: &CS2) -> Option<Self> {

@@ -21,6 +21,18 @@ Running NixOS or Fedora Atomic? See [OS-Specific Setup](os-setup.md).
 ./run.sh
 ```
 
+## Syncing & Updates
+
+- **Download latest updates**:
+```bash
+./download.sh
+```
+
+- **Upload updates & capture GUI screenshot preview**:
+```bash
+./upload.sh "optional commit message"
+```
+
 ## Features
 
 ### Aimbot
@@ -30,7 +42,7 @@ Running NixOS or Fedora Atomic? See [OS-Specific Setup](os-setup.md).
 - Smooth & Inertia Control
 - Start bullet
 - Targeting mode
-- Visibility check (BVH VPK parsing, Bone LoS, Pixel LoS, Both, Either)
+- Visibility check (BVH VPK parsing, Bone LoS, Bone Fast)
 - Bone selection & Bone mode (Nearest / Priority)
 - Flash check
 - FOV circle
@@ -87,6 +99,10 @@ Running NixOS or Fedora Atomic? See [OS-Specific Setup](os-setup.md).
 - Bomb timer
 - Mic Tone generator
 - Real-time thread performance & frame telemetry graph
+
+### GUI & Previews
+
+- Screenshots and preview captures of the GUI layout are saved in `media/previews/`.
 
 ### Unsafe
 

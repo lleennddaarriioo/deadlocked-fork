@@ -155,39 +155,6 @@ impl CS2 {
                                 target.visible(self, &local_player)
                             }
                         }
-                        crate::config::aim::VisibilityMode::PixelLoS => target.is_pixel_visible(self),
-                        crate::config::aim::VisibilityMode::Both => {
-                            let bone_vis = if let Some(cached_map) = self.cached_bone_vis.get(&target.steam_id(self)) {
-                                cached_map.get(bone).copied().unwrap_or_else(|| {
-                                    if let Some(bvh) = &self.bvh {
-                                        bvh.has_line_of_sight(eye_pos, bone_pos)
-                                    } else {
-                                        target.visible(self, &local_player)
-                                    }
-                                })
-                            } else if let Some(bvh) = &self.bvh {
-                                bvh.has_line_of_sight(eye_pos, bone_pos)
-                            } else {
-                                target.visible(self, &local_player)
-                            };
-                            bone_vis && target.is_pixel_visible(self)
-                        }
-                        crate::config::aim::VisibilityMode::Either => {
-                            let bone_vis = if let Some(cached_map) = self.cached_bone_vis.get(&target.steam_id(self)) {
-                                cached_map.get(bone).copied().unwrap_or_else(|| {
-                                    if let Some(bvh) = &self.bvh {
-                                        bvh.has_line_of_sight(eye_pos, bone_pos)
-                                    } else {
-                                        target.visible(self, &local_player)
-                                    }
-                                })
-                            } else if let Some(bvh) = &self.bvh {
-                                bvh.has_line_of_sight(eye_pos, bone_pos)
-                            } else {
-                                target.visible(self, &local_player)
-                            };
-                            bone_vis || target.is_pixel_visible(self)
-                        }
                     };
 
                     if !is_vis {

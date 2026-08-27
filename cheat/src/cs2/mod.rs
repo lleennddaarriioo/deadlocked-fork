@@ -68,9 +68,7 @@ pub struct CS2 {
     last_cache: Instant,
     last_bvh: Instant,
     last_bone_vis: Instant,
-    last_pixel_vis: Instant,
     cached_bone_vis: std::collections::HashMap<u64, std::collections::HashMap<Bones, bool>>,
-    cached_pixel_vis: std::collections::HashMap<u64, bool>,
     last_bhop: Instant,
     last_aimbot: Instant,
     last_input: Instant,
@@ -421,12 +419,6 @@ impl CS2 {
             self.last_bone_vis = Instant::now();
         }
 
-        let pixel_vis_interval_ms = if config.pixel_vis_hz == 0 { 0 } else { 1000 / config.pixel_vis_hz.max(1) };
-        let update_pixel_vis = self.last_pixel_vis.elapsed() >= Duration::from_millis(pixel_vis_interval_ms as u64);
-        if update_pixel_vis {
-            self.last_pixel_vis = Instant::now();
-        }
-
         let player_results: Vec<(bool, PlayerData)> = self
             .players
             .par_iter()
@@ -448,12 +440,6 @@ impl CS2 {
                     map
                 } else {
                     self.cached_bone_vis.get(&steam_id).cloned().unwrap_or_default()
-                };
-
-                let pixel_visible = if update_pixel_vis {
-                    player.is_pixel_visible(self)
-                } else {
-                    self.cached_pixel_vis.get(&steam_id).copied().unwrap_or(false)
                 };
 
                 let mut chams_segments = Vec::new();
@@ -518,7 +504,6 @@ impl CS2 {
                     has_bomb: player.has_bomb(self),
                     is_defusing: player.is_defusing(self),
                     visible: player.visible(self, &local_player),
-                    pixel_visible,
                     visible_bones,
                     color: player.color(self),
                     rotation: player.rotation(self),
@@ -537,11 +522,6 @@ impl CS2 {
         if update_bone_vis {
             for (_, pd) in &player_results {
                 self.cached_bone_vis.insert(pd.steam_id, pd.visible_bones.clone());
-            }
-        }
-        if update_pixel_vis {
-            for (_, pd) in &player_results {
-                self.cached_pixel_vis.insert(pd.steam_id, pd.pixel_visible);
             }
         }
 
@@ -594,7 +574,6 @@ impl CS2 {
             has_bomb: active_player.has_bomb(self),
             is_defusing: active_player.is_defusing(self),
             visible: true,
-            pixel_visible: true,
             visible_bones,
             color: active_player.color(self),
             rotation: active_player.rotation(self),
@@ -755,9 +734,7 @@ impl CS2 {
             last_cache: Instant::now(),
             last_bvh: Instant::now(),
             last_bone_vis: Instant::now(),
-            last_pixel_vis: Instant::now(),
             cached_bone_vis: std::collections::HashMap::new(),
-            cached_pixel_vis: std::collections::HashMap::new(),
             last_bhop: Instant::now(),
             last_aimbot: Instant::now(),
             last_input: Instant::now(),

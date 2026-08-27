@@ -33,9 +33,6 @@ impl WeaponConfig {
 pub enum VisibilityMode {
     BoneLoS,
     BoneFast,
-    PixelLoS,
-    Both,
-    Either,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,7 +66,7 @@ impl Default for AimbotConfig {
             distance_adjusted_fov: true,
             start_bullet: 0,
             visibility_check: true,
-            visibility_mode: VisibilityMode::Either,
+            visibility_mode: VisibilityMode::BoneLoS,
             flash_check: true,
             fov: 2.5,
             smooth: 5.0,
@@ -78,7 +75,6 @@ impl Default for AimbotConfig {
                 Bones::Head,
                 Bones::Neck,
                 Bones::Spine4,
-                Bones::Spine3,
                 Bones::Spine2,
                 Bones::Spine1,
                 Bones::Hip,
@@ -154,7 +150,7 @@ impl Default for TriggerbotConfig {
             shot_duration: 200,
             mode: KeyMode::Hold,
             visibility_check: true,
-            visibility_mode: VisibilityMode::Either,
+            visibility_mode: VisibilityMode::BoneLoS,
             flash_check: true,
             scope_check: true,
             velocity_check: true,
