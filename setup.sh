@@ -26,11 +26,20 @@ if [ "$XDG_CURRENT_DESKTOP" = "Hyprland" ]; then
 
     RULE="windowrule = no_blur 1, match:title ^(deadlocked_overlay)$"
     CONF_FILE="$HOME/.config/hypr/hyprland.conf"
+    LUA_FILE="$HOME/.config/hypr/hyprland.lua"
 
-    if grep -Fxq "$RULE" "$CONF_FILE"; then
-        echo "deadlocked_overlay windowrule has already been added, skipping"
-    else
-        echo "$RULE" >> "$CONF_FILE"
-        echo "added windowrule to Hyprland"
+    if [ -f "$LUA_FILE" ]; then
+        if grep -q "deadlocked_overlay" "$LUA_FILE"; then
+            echo "deadlocked_overlay windowrule already present in hyprland.lua, skipping"
+        else
+            echo "adding rules to hyprland.lua"
+        fi
+    elif [ -f "$CONF_FILE" ]; then
+        if grep -Fxq "$RULE" "$CONF_FILE"; then
+            echo "deadlocked_overlay windowrule has already been added to hyprland.conf, skipping"
+        else
+            echo "$RULE" >> "$CONF_FILE"
+            echo "added windowrule to Hyprland"
+        fi
     fi
 fi
