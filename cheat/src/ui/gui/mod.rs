@@ -39,6 +39,7 @@ impl Tab {
         Tab::Hud,
         Tab::Grenades,
         Tab::Unsafe,
+        Tab::Config,
         Tab::Application,
         Tab::Telemetry,
     ];
@@ -233,7 +234,7 @@ impl App {
                     self.demo_last_step = std::time::Instant::now();
                 }
             } else if self.demo_last_step.elapsed() >= Duration::from_millis(500) {
-                utils::info!("All GUI tab screenshots captured successfully (Config tab omitted)! Exiting.");
+                utils::info!("All GUI tab screenshots captured successfully! Exiting.");
                 std::process::exit(0);
             }
         }
