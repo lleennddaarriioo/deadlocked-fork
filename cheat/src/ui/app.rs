@@ -158,7 +158,12 @@ impl App {
         self.config.font.set(gui.egui());
         self.config.font.set(overlay.egui());
 
-        self.display_scale = gui.window().scale_factor() as f32;
+        if self.demo_mode {
+            let _ = gui.window().request_inner_size(winit::dpi::LogicalSize::new(1280, 720));
+            self.display_scale = 1.25;
+        } else {
+            self.display_scale = gui.window().scale_factor() as f32;
+        }
         utils::info!("detected display scale: {}", self.display_scale);
 
         self.gui = Some(gui);

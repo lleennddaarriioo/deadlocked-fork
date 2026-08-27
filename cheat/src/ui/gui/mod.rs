@@ -33,13 +33,12 @@ pub enum Tab {
 }
 
 impl Tab {
-    pub const ALL: &'static [Tab] = &[
+    pub const DEMO_TABS: &'static [Tab] = &[
         Tab::Aimbot,
         Tab::Player,
         Tab::Hud,
         Tab::Grenades,
         Tab::Unsafe,
-        Tab::Config,
         Tab::Application,
         Tab::Telemetry,
     ];
@@ -214,24 +213,24 @@ impl App {
         }
 
         if self.demo_mode {
-            if self.demo_tab_idx < Tab::ALL.len() {
-                self.current_tab = Tab::ALL[self.demo_tab_idx];
+            if self.demo_tab_idx < Tab::DEMO_TABS.len() {
+                self.current_tab = Tab::DEMO_TABS[self.demo_tab_idx];
                 if self.demo_last_step.elapsed() >= Duration::from_millis(600) {
-                    let tab_name = Tab::ALL[self.demo_tab_idx].name();
+                    let tab_name = Tab::DEMO_TABS[self.demo_tab_idx].name();
                     let file_name = format!("media/previews/{:02}_{}.png", self.demo_tab_idx + 1, tab_name);
                     let _ = std::fs::create_dir_all("media/previews");
                     
-                    utils::info!("Capturing full-system GUI screenshot for tab '{}' -> {}", tab_name, file_name);
+                    utils::info!("Capturing Full HD screen screenshot for tab '{}' -> {}", tab_name, file_name);
                     let _ = std::process::Command::new("sh")
                         .arg("-c")
-                        .arg(format!("grim '{file_name}' || spectacle -b -n -o '{file_name}' || import -window root '{file_name}'"))
+                        .arg(format!("grim -g \"$(hyprctl clients -j 2>/dev/null | jq -r '.[] | select(.title==\"deadlocked\") | \"\\(.at[0]),\\(.at[1]) \\(.size[0])x\\(.size[1])\"' 2>/dev/null)\" '{file_name}' 2>/dev/null || grim '{file_name}' || spectacle -b -n -o '{file_name}' || import -window root '{file_name}'"))
                         .status();
 
                     self.demo_tab_idx += 1;
                     self.demo_last_step = std::time::Instant::now();
                 }
             } else if self.demo_last_step.elapsed() >= Duration::from_millis(500) {
-                utils::info!("All GUI tab screenshots captured successfully! Exiting.");
+                utils::info!("All GUI tab screenshots captured successfully (Config tab omitted)! Exiting.");
                 std::process::exit(0);
             }
         }
