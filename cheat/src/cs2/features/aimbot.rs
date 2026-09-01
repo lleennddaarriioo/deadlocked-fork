@@ -12,10 +12,25 @@ use crate::{
     os::mouse::Mouse,
 };
 
+#[derive(Debug, Default, PartialEq)]
+pub enum SilentAimState {
+    #[default]
+    Idle,
+    FlickingToTarget,
+    Shooting,
+    SnappingBack,
+}
+
 #[derive(Debug, Default)]
 pub struct Aimbot {
     pub active: bool,
-    inertia: Vec2,
+    pub inertia: Vec2,
+    pub saved_angles: Option<Vec2>,
+    pub silent_mouse_angles: Option<Vec2>,
+    pub silent_target_angle: Option<Vec2>,
+    pub was_active: bool,
+    pub silent_state: SilentAimState,
+    pub silent_timer: Option<std::time::Instant>,
 }
 
 impl CS2 {
@@ -28,13 +43,78 @@ impl CS2 {
             return false;
         }
 
-        if !Self::check_hotkey(&self.input, config.mode, hotkey, crate::cs2::key_codes::KeyCode::None, &mut self.aim.active) {
-            return false;
-        }
-
+        let hotkey_active = Self::check_hotkey(&self.input, config.mode, hotkey, crate::cs2::key_codes::KeyCode::None, &mut self.aim.active);
+        
         let Some(local_player) = Player::local_player(self) else {
             return false;
         };
+
+        let is_silent = config.silent_aim;
+        let mut in_progress = false;
+
+        if is_silent && self.aim.silent_state != SilentAimState::Idle {
+            in_progress = true;
+        }
+
+        if !hotkey_active && !in_progress {
+            self.aim.silent_state = SilentAimState::Idle;
+            self.aim.saved_angles = None;
+            self.aim.was_active = false;
+            return false;
+        }
+
+        if in_progress {
+            match self.aim.silent_state {
+                SilentAimState::FlickingToTarget => {
+                    if let Some(timer) = self.aim.silent_timer {
+                        if std::time::Instant::now() >= timer {
+                            mouse.left_press();
+                            
+                            if let Some(target) = self.aim.silent_target_angle {
+                                let actual_angles = local_player.view_angles(self);
+                                let mut diff = actual_angles - target;
+                                while diff.y < -180.0 { diff.y += 360.0; }
+                                while diff.y > 180.0 { diff.y -= 360.0; }
+                                crate::math::vec2_clamp(&mut diff);
+                                
+                                ::utils::info!("[flickbot] SHOT FIRED! Target: ({:.2}, {:.2}) | Actual: ({:.2}, {:.2}) | Miss Offset: ({:.2}, {:.2})", 
+                                    target.x, target.y, actual_angles.x, actual_angles.y, diff.x, diff.y);
+                            }
+                            
+                            self.aim.silent_state = SilentAimState::Shooting;
+                            self.aim.silent_timer = Some(std::time::Instant::now() + std::time::Duration::from_millis(20));
+                        }
+                    }
+                    return true;
+                }
+                SilentAimState::Shooting => {
+                    if let Some(timer) = self.aim.silent_timer {
+                        if std::time::Instant::now() >= timer {
+                            mouse.left_release();
+                            
+                            if let Some(mouse_angles) = self.aim.silent_mouse_angles {
+                                // Snap back by perfectly reversing the exact mouse movement we made, ignoring view angles (recoil)
+                                mouse.move_rel(vec2(-mouse_angles.x, -mouse_angles.y));
+                            }
+                            
+                            self.aim.silent_state = SilentAimState::SnappingBack;
+                            self.aim.silent_timer = Some(std::time::Instant::now() + std::time::Duration::from_millis(150));
+                        }
+                    }
+                    return true;
+                }
+                SilentAimState::SnappingBack => {
+                    if let Some(timer) = self.aim.silent_timer {
+                        if std::time::Instant::now() >= timer {
+                            self.aim.silent_state = SilentAimState::Idle;
+                            self.aim.silent_mouse_angles = None;
+                        }
+                    }
+                    return true;
+                }
+                _ => {}
+            }
+        }
 
         let weapon_class = local_player.weapon_class(self);
 
@@ -87,10 +167,12 @@ impl CS2 {
         }
 
         let Some(target) = &self.target.player else {
+            ::utils::info!("[aimbot miss] no target selected in target manager");
             return false;
         };
 
         if !target.is_valid(self) {
+            ::utils::info!("[aimbot miss] target invalid (dead/dormant)");
             return false;
         }
 
@@ -99,16 +181,17 @@ impl CS2 {
             WeaponClass::Knife,
         ];
         if disallowed_weapons.contains(&weapon_class) {
+            ::utils::info!("[aimbot miss] disallowed weapon class: {:?}", weapon_class);
             return false;
         }
 
         if config.flash_check && local_player.is_flashed(self) {
+            ::utils::info!("[aimbot miss] player is flashed");
             return false;
         }
 
-
-
         if local_player.shots_fired(self) < config.start_bullet {
+            ::utils::info!("[aimbot miss] shots fired ({}) < start_bullet ({})", local_player.shots_fired(self), config.start_bullet);
             return false;
         }
 
@@ -130,36 +213,37 @@ impl CS2 {
 
             for bone in &config.bones {
                 let bone_pos = target.bone_position(self, bone.u64());
+                let dist_units = eye_pos.distance(bone_pos);
+                let dist_meters = dist_units * 0.0254;
 
-                if config.visibility_check {
-                    let is_vis = match config.visibility_mode {
+                let is_vis = if config.visibility_check {
+                    match config.visibility_mode {
                         crate::config::aim::VisibilityMode::BoneFast => {
                             if let Some(bvh) = &self.bvh {
-                                bvh.has_line_of_sight(eye_pos, bone_pos)
+                                bvh.has_line_of_sight(eye_pos, bone_pos) || target.visible(self, &local_player)
                             } else {
                                 target.visible(self, &local_player)
                             }
                         }
                         crate::config::aim::VisibilityMode::BoneLoS => {
-                            if let Some(cached_map) = self.cached_bone_vis.get(&target.steam_id(self)) {
-                                cached_map.get(bone).copied().unwrap_or_else(|| {
-                                    if let Some(bvh) = &self.bvh {
-                                        bvh.has_line_of_sight(eye_pos, bone_pos)
-                                    } else {
-                                        target.visible(self, &local_player)
-                                    }
-                                })
-                            } else if let Some(bvh) = &self.bvh {
-                                bvh.has_line_of_sight(eye_pos, bone_pos)
-                            } else {
-                                target.visible(self, &local_player)
-                            }
+                            target.visible(self, &local_player)
                         }
-                    };
-
-                    if !is_vis {
-                        continue;
                     }
+                } else {
+                    true
+                };
+
+                if !is_vis {
+                    if std::env::args().any(|arg| arg == "debug" || arg == "--debug" || arg.starts_with("-v")) {
+                        ::utils::info!(
+                            "[aimbot miss] target: '{}' | bone: {:?} | dist: {:.1}m ({:.0}u) | LOS block",
+                            target.name(self),
+                            bone,
+                            dist_meters,
+                            dist_units,
+                        );
+                    }
+                    continue;
                 }
 
                 let player_weapon = local_player.weapon(self);
@@ -180,6 +264,8 @@ impl CS2 {
                         found_bone = true;
                         best_bone_damage = Some((predicted_damage, base_damage * 4.0));
                         break;
+                    } else {
+                        ::utils::info!("[aimbot miss] priority bone {:?} outside max_fov ({:.1} > {:.1})", bone, fov, max_fov);
                     }
                 } else {
                     if fov < smallest_fov {
@@ -192,6 +278,7 @@ impl CS2 {
             }
 
             if !found_bone {
+                ::utils::info!("[aimbot miss] no suitable bone found for target");
                 self.aimbot_predicted_damage = None;
                 return false;
             }
@@ -202,14 +289,10 @@ impl CS2 {
         self.aimbot_predicted_damage = best_bone_damage;
 
         let view_angles = local_player.view_angles(self);
-        if angles_to_fov(&view_angles, &target_angle)
-            > (config.fov
-                * if config.distance_adjusted_fov {
-                    self.distance_scale(self.target.distance)
-                } else {
-                    1.0
-                })
-        {
+
+        let current_fov = angles_to_fov(&view_angles, &target_angle);
+        if current_fov > max_fov {
+            ::utils::info!("[aimbot miss] target angle outside FOV threshold ({:.1} > {:.1})", current_fov, max_fov);
             return false;
         }
 
@@ -221,18 +304,41 @@ impl CS2 {
 
         let sensitivity = self.get_sensitivity() * local_player.fov_multiplier(self);
 
-        // Avoid overshooting by enforcing a minimum smoothing divisor.
-        // Even at "0" smooth, a divisor of 2.0 ensures we only cover half the distance per tick,
-        // preventing the aimbot from snapping past the target due to floating-point/pixel rounding.
-        let smooth_factor = (config.smooth + 1.0).max(2.0);
-        let mouse_angles = vec2(
-            aim_angles.y / sensitivity * 45.45,
-            -aim_angles.x / sensitivity * 45.45,
-        ) / smooth_factor;
+        if config.silent_aim {
+            if self.aim.silent_state == SilentAimState::Idle {
+                let mouse_angles = vec2(
+                    aim_angles.y / sensitivity * 45.45,
+                    -aim_angles.x / sensitivity * 45.45,
+                );
+                self.aim.inertia = Vec2::ZERO;
+                mouse.move_rel(mouse_angles);
+                
+                ::utils::info!("[flickbot] FLICK INITIATED! Start: ({:.2}, {:.2}) | Target: ({:.2}, {:.2}) | Aim Delta: ({:.2}, {:.2}) | Mouse Pixels: ({:.2}, {:.2})", 
+                    view_angles.x, view_angles.y, target_angle.x, target_angle.y, aim_angles.x, aim_angles.y, mouse_angles.x, mouse_angles.y);
+                    
+                self.aim.silent_mouse_angles = Some(mouse_angles);
+                self.aim.silent_target_angle = Some(target_angle);
+                self.aim.silent_state = SilentAimState::FlickingToTarget;
+                self.aim.silent_timer = Some(std::time::Instant::now() + std::time::Duration::from_millis(15));
+            }
+        } else if config.smooth < 1.0 {
+            let mouse_angles = vec2(
+                aim_angles.y / sensitivity * 45.45,
+                -aim_angles.x / sensitivity * 45.45,
+            );
+            self.aim.inertia = Vec2::ZERO;
+            mouse.move_rel(mouse_angles);
+        } else {
+            let smooth_factor = config.smooth + 1.0;
+            let mouse_angles = vec2(
+                aim_angles.y / sensitivity * 45.45,
+                -aim_angles.x / sensitivity * 45.45,
+            ) / smooth_factor;
 
-        let alpha = 1.0 - config.inertia.clamp(0.0, 1.0) * 0.5;
-        self.aim.inertia += (mouse_angles - self.aim.inertia) * alpha;
-        mouse.move_rel(self.aim.inertia);
+            let alpha = 1.0 - config.inertia.clamp(0.0, 1.0) * 0.5;
+            self.aim.inertia += (mouse_angles - self.aim.inertia) * alpha;
+            mouse.move_rel(self.aim.inertia);
+        }
 
         self.recoil.previous = local_player.aim_punch(self);
 

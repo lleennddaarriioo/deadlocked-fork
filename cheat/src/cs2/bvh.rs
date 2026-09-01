@@ -104,6 +104,16 @@ fn process_shape(cs2: &CS2, shape: u64, triangles: &mut Vec<Triangle>) {
     // Mesh: "12CRnMeshShape"
     // Hull: "12CRnHullShape"
     let rtti_name = rtti_name(cs2, shape);
+    
+    let interact_as: u64 = cs2.process.read(shape + 0x20);
+    let material: u8 = cs2.process.read(shape + 0x80);
+    
+    // Many clip brushes or triggers will have different interact_as masks at the shape level!
+    // We log it so we can find a pattern to exclude them.
+    if std::env::args().any(|arg| arg == "debug" || arg == "--debug" || arg.starts_with("-v")) {
+        ::utils::info!("[bvh shape] {} | interact_as: {:#018x} | mat: {}", rtti_name, interact_as, material);
+    }
+
     match rtti_name.as_ref() {
         "12CRnMeshShape" => process_mesh(cs2, shape, triangles),
         "12CRnHullShape" => process_hull(cs2, shape, triangles),

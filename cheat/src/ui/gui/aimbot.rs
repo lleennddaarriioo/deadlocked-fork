@@ -115,6 +115,15 @@ impl App {
                 self.send_config();
             }
 
+            if checkbox_hover(
+                ui,
+                "Silent Aim (ST)",
+                "Snaps to the target then immediately snaps back",
+                &mut self.weapon_config().aimbot.silent_aim,
+            ) {
+                self.send_config();
+            }
+
             if drag(
                 ui,
                 "Inertia",

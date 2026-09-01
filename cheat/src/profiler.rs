@@ -61,9 +61,6 @@ impl Profiler {
         self.stats.clone()
     }
 
-    pub fn reset(&mut self) {
-        self.stats.clear();
-    }
 }
 
 pub static GLOBAL_PROFILER: std::sync::LazyLock<Mutex<Profiler>> =

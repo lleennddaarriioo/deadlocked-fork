@@ -38,13 +38,6 @@ impl Input {
         self.current_state.get(key.usize()).unwrap_or(false)
     }
 
-    pub fn is_key_released(&self, key: KeyCode) -> bool {
-        if key == KeyCode::None {
-            return false;
-        }
-        !self.current_state.get(key.usize()).unwrap_or(false)
-    }
-
     pub fn key_just_pressed(&self, key: KeyCode) -> bool {
         if key == KeyCode::None {
             return false;
@@ -53,11 +46,4 @@ impl Input {
             && self.current_state.get(key.usize()).unwrap_or(false)
     }
 
-    pub fn key_just_released(&self, key: KeyCode) -> bool {
-        if key == KeyCode::None {
-            return false;
-        }
-        self.previous_state.get(key.usize()).unwrap_or(false)
-            && !self.current_state.get(key.usize()).unwrap_or(false)
-    }
 }

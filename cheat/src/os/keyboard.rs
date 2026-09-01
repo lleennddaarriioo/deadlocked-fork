@@ -231,13 +231,6 @@ impl Keyboard {
     }
 
     /// Checks hardware keyboard input state directly from linux evdev kernel drivers (`/dev/input/event*`).
-    /// Returns true if any physical WASD movement key (KEY_W=17, KEY_A=30, KEY_S=31, KEY_D=32) is currently held down on real hardware.
-    pub fn is_any_physical_key_pressed(&self) -> bool {
-        let (w, a, s, d) = self.get_physical_wasd();
-        w || a || s || d
-    }
-
-    /// Checks hardware keyboard input state directly from linux evdev kernel drivers (`/dev/input/event*`).
     /// Returns true if physical SPACE key (KEY_SPACE=57) is currently pressed on real hardware.
     pub fn is_physical_space_pressed(&self) -> bool {
         let mut space = false;
@@ -308,20 +301,12 @@ impl Keyboard {
         self.key(KEY_SPACE, 0);
     }
 
-    pub fn space_pressed(&self) -> bool {
-        self.space_pressed
-    }
-
     pub fn end_press(&mut self) {
         self.key(KEY_END, 1);
     }
 
     pub fn end_release(&mut self) {
         self.key(KEY_END, 0);
-    }
-
-    pub fn end_pressed(&self) -> bool {
-        self.end_pressed
     }
 
     pub fn w_press(&mut self) {
@@ -360,22 +345,6 @@ impl Keyboard {
     pub fn s_pressed(&self) -> bool { self.s_pressed }
     pub fn a_pressed(&self) -> bool { self.a_pressed }
     pub fn d_pressed(&self) -> bool { self.d_pressed }
-
-    pub fn p_press(&mut self) {
-        self.key(KEY_P, 1);
-    }
-
-    pub fn p_release(&mut self) {
-        self.key(KEY_P, 0);
-    }
-
-    pub fn o_press(&mut self) {
-        self.key(KEY_O, 1);
-    }
-
-    pub fn o_release(&mut self) {
-        self.key(KEY_O, 0);
-    }
 
     pub fn get_cps(&mut self) -> (u32, u32) {
         let now = std::time::Instant::now();

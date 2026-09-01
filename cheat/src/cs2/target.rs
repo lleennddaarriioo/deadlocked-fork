@@ -82,16 +82,57 @@ impl CS2 {
                 continue;
             }
 
-            if aimbot_config.visibility_check && !player.is_visible_mode(self, &local_player, aimbot_config.visibility_mode) {
-                continue;
-            }
+            let is_vis = if aimbot_config.visibility_check {
+                match aimbot_config.visibility_mode {
+                    crate::config::aim::VisibilityMode::BoneFast => {
+                        if let Some(bvh) = &self.bvh {
+                            let mut visible = false;
+                            for bone in &aimbot_config.bones {
+                                let bone_pos = player.bone_position(self, bone.u64());
+                                if bvh.has_line_of_sight(eye_position, bone_pos) {
+                                    visible = true;
+                                    break;
+                                }
+                            }
+                            visible || player.visible(self, &local_player)
+                        } else {
+                            player.is_visible_mode(self, &local_player, aimbot_config.visibility_mode)
+                        }
+                    }
+                    crate::config::aim::VisibilityMode::BoneLoS => {
+                        player.is_visible_mode(self, &local_player, aimbot_config.visibility_mode)
+                    }
+                }
+            } else {
+                true
+            };
 
             let head_position = player.bone_position(self, Bones::Head.u64());
             let distance = eye_position.distance(head_position);
+            let dist_meters = distance * 0.0254;
             let angle = self.angle_to_target(&local_player, &head_position, &aim_punch);
             let fov = angles_to_fov(&view_angles, &angle);
 
             let fov_limit = max_fov * self.distance_scale(distance);
+
+            if std::env::args().any(|arg| arg == "debug" || arg == "--debug" || arg.starts_with("-v")) {
+                // ::utils::info!(
+                //     "[target_select] candidate: '{}' | from: ({:.1}, {:.1}, {:.1}) -> head: ({:.1}, {:.1}, {:.1}) | dist: {:.1}m ({:.0}u) | FOV: {:.1}/{:.1} | LOS: {}",
+                //     player.name(self),
+                //     eye_position.x, eye_position.y, eye_position.z,
+                //     head_position.x, head_position.y, head_position.z,
+                //     dist_meters,
+                //     distance,
+                //     fov,
+                //     fov_limit,
+                //     is_vis
+                // );
+            }
+
+            if !is_vis {
+                continue;
+            }
+
             if fov > fov_limit {
                 continue;
             }

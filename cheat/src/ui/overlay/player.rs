@@ -101,7 +101,8 @@ impl App {
             DrawMode::None => health_color,
             DrawMode::Health => health_color,
             DrawMode::Color => {
-                if player.visible {
+                let is_vis = player.visible || player.visible_bones.values().any(|&v| v);
+                if is_vis {
                     self.config.player.box_visible_color
                 } else {
                     self.config.player.box_invisible_color

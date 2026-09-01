@@ -334,11 +334,6 @@ impl Player {
             .read(self.pawn + cs2.offsets.pawn.fov_multiplier)
     }
 
-    pub fn spotted_mask(&self, cs2: &CS2) -> i64 {
-        cs2.process
-            .read(self.pawn + cs2.offsets.pawn.spotted_state + cs2.offsets.spotted_state.mask)
-    }
-
     pub fn is_valid(&self, cs2: &CS2) -> bool {
         if self.is_dormant(cs2) {
             return false;
@@ -468,59 +463,57 @@ impl Player {
         )
     }
 
-    pub fn is_bone_visible(&self, cs2: &CS2, local_player: &Player) -> bool {
-        let steam_id = self.steam_id(cs2);
-        if let Some(cached_map) = cs2.cached_bone_vis.get(&steam_id) {
-            if !cached_map.is_empty() {
-                const CHECKED_BONES: [Bones; 9] = [
-                    Bones::Head,
-                    Bones::Neck,
-                    Bones::Spine4,
-                    Bones::Spine2,
-                    Bones::Hip,
-                    Bones::LeftFoot,
-                    Bones::RightFoot,
-                    Bones::LeftHand,
-                    Bones::RightHand,
-                ];
-                return CHECKED_BONES.iter().any(|b| cached_map.get(b).copied().unwrap_or(false));
+    pub fn visible(&self, cs2: &CS2, local_player: &Player) -> bool {
+        let spotted_state = self.pawn + cs2.offsets.pawn.spotted_state;
+        let spotted_by_mask: u32 = cs2.process.read(spotted_state + cs2.offsets.spotted_state.mask);
+        
+        let local_index = cs2.process.read::<i32>(local_player.pawn + 0x10) - 1;
+        if local_index >= 0 && local_index < 64 {
+            if (spotted_by_mask & (1 << local_index)) != 0 {
+                return true;
             }
         }
-
-        if let Some(bvh) = &cs2.bvh {
-            let eye_pos = local_player.eye_position(cs2);
-            const CHECKED_BONES: [Bones; 9] = [
-                Bones::Head,
-                Bones::Neck,
-                Bones::Spine4,
-                Bones::Spine2,
-                Bones::Hip,
-                Bones::LeftFoot,
-                Bones::RightFoot,
-                Bones::LeftHand,
-                Bones::RightHand,
-            ];
-            CHECKED_BONES
-                .iter()
-                .any(|bone| bvh.has_line_of_sight(eye_pos, self.bone_position(cs2, bone.u64())))
-        } else {
-            true
-        }
+        false
     }
 
-
+    pub fn is_bone_visible(&self, cs2: &CS2, local_player: &Player) -> bool {
+        self.visible(cs2, local_player)
+    }
 
     pub fn is_visible_mode(
         &self,
         cs2: &CS2,
         local_player: &Player,
-        _mode: crate::config::aim::VisibilityMode,
+        mode: crate::config::aim::VisibilityMode,
     ) -> bool {
-        self.is_bone_visible(cs2, local_player)
-    }
-
-    pub fn visible(&self, cs2: &CS2, local_player: &Player) -> bool {
-        self.is_bone_visible(cs2, local_player)
+        match mode {
+            crate::config::aim::VisibilityMode::BoneFast => {
+                if let Some(bvh) = &cs2.bvh {
+                    let eye_pos = local_player.eye_position(cs2);
+                    const CHECKED_BONES: [Bones; 9] = [
+                        Bones::Head,
+                        Bones::Neck,
+                        Bones::Spine4,
+                        Bones::Spine2,
+                        Bones::Hip,
+                        Bones::LeftFoot,
+                        Bones::RightFoot,
+                        Bones::LeftHand,
+                        Bones::RightHand,
+                    ];
+                    let bvh_vis = CHECKED_BONES
+                        .iter()
+                        .any(|bone| bvh.has_line_of_sight(eye_pos, self.bone_position(cs2, bone.u64())));
+                    
+                    bvh_vis || self.visible(cs2, local_player)
+                } else {
+                    self.visible(cs2, local_player)
+                }
+            }
+            crate::config::aim::VisibilityMode::BoneLoS => {
+                self.visible(cs2, local_player)
+            }
+        }
     }
 
     pub fn crosshair_entity(&self, cs2: &CS2) -> Option<Self> {

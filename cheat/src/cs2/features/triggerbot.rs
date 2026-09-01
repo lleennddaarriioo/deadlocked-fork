@@ -323,7 +323,7 @@ impl CS2 {
 
                 if config.visibility_check {
                     let bone_vis = if let Some(bvh) = &self.bvh {
-                        bvh.has_line_of_sight(eye_pos, bone_pos)
+                        bvh.has_line_of_sight(eye_pos, bone_pos) || p.visible(self, local_player)
                     } else {
                         p.visible(self, local_player)
                     };

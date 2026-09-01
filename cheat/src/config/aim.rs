@@ -49,6 +49,7 @@ pub struct AimbotConfig {
     pub flash_check: bool,
     pub fov: f32,
     pub smooth: f32,
+    pub silent_aim: bool,
     pub inertia: f32,
     pub bones: Vec<Bones>,
     pub bone_mode: BoneMode,
@@ -70,6 +71,7 @@ impl Default for AimbotConfig {
             flash_check: true,
             fov: 2.5,
             smooth: 5.0,
+            silent_aim: false,
             inertia: 1.0,
             bones: vec![
                 Bones::Head,
