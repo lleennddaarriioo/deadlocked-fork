@@ -39,6 +39,7 @@ pub struct PlayerConfig {
     pub visible_only: bool,
     pub target_player_name: String,
     pub sound: SoundConfig,
+    pub offscreen: OffscreenConfig,
 }
 
 impl Default for PlayerConfig {
@@ -63,6 +64,31 @@ impl Default for PlayerConfig {
             visible_only: false,
             target_player_name: String::new(),
             sound: SoundConfig::default(),
+            offscreen: OffscreenConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct OffscreenConfig {
+    pub enabled: bool,
+    pub hide_when_onscreen: bool,
+    pub radius_px: f32,
+    pub size: f32,
+    pub show_distance: bool,
+    pub show_health: bool,
+}
+
+impl Default for OffscreenConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            hide_when_onscreen: false,
+            radius_px: 200.0,
+            size: 16.0,
+            show_distance: true,
+            show_health: true,
         }
     }
 }

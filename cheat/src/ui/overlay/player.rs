@@ -51,6 +51,7 @@ impl App {
             SoundType::Footstep => self.config.player.sound.footstep_diameter,
             SoundType::Gunshot => self.config.player.sound.gunshot_diameter,
             SoundType::Weapon => self.config.player.sound.weapon_diameter,
+            _ => self.config.player.sound.weapon_diameter,
         };
         if local_player.position.distance(player.position) > max_distance {
             return Some(0.0);

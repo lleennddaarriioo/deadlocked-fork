@@ -141,6 +141,8 @@ pub struct TriggerbotConfig {
     pub head_only: bool,
     pub hit_chance: f32,
     pub damage_threshold: f32,
+    pub aimbot_lock_only: bool,
+    pub lock_fov_threshold: f32,
 }
 
 impl Default for TriggerbotConfig {
@@ -160,6 +162,8 @@ impl Default for TriggerbotConfig {
             head_only: false,
             hit_chance: 1.0,
             damage_threshold: 0.0,
+            aimbot_lock_only: false,
+            lock_fov_threshold: 1.5,
         }
     }
 }

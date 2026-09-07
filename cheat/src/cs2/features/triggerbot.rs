@@ -59,6 +59,12 @@ impl CS2 {
             return;
         }
 
+        if config.aimbot_lock_only {
+            if !self.aim.is_locked || self.aim.current_target_fov > config.lock_fov_threshold {
+                return;
+            }
+        }
+
         self.triggerbot_predicted_damage = None;
 
         let weapon_class = local_player.weapon_class(self);

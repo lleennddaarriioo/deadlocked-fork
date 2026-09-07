@@ -75,6 +75,13 @@ pub struct CS2 {
     last_trigger: Instant,
     aimbot_predicted_damage: Option<(f32, f32)>, // (damage, headshot_damage)
     triggerbot_predicted_damage: Option<(f32, f32)>, // (damage, headshot_damage)
+    sound_events: Vec<shared::data::SoundEventData>,
+    last_sound_update: Instant,
+    hit_damage_markers: Vec<shared::data::HitDamageMarkerData>,
+    last_hit_marker_update: Instant,
+    last_total_damage: u32,
+    prev_enemy_health: std::collections::HashMap<u64, i32>,
+    last_hit_tracker: std::collections::HashMap<u64, (u32, Instant)>,
 }
 
 impl CS2 {
@@ -489,6 +496,7 @@ impl CS2 {
 
                 let is_friendly = !is_ffa && player.team(self) == local_team;
                 let player_data = PlayerData {
+                    pawn: player.pawn,
                     steam_id,
                     health: player.health(self),
                     armor: player.armor(self),
@@ -521,7 +529,7 @@ impl CS2 {
 
         if update_bone_vis {
             for (_, pd) in &player_results {
-                self.cached_bone_vis.insert(pd.steam_id, pd.visible_bones.clone());
+                self.cached_bone_vis.insert(pd.pawn, pd.visible_bones.clone());
             }
         }
 
@@ -556,6 +564,7 @@ impl CS2 {
         }
 
         data.local_player = PlayerData {
+            pawn: active_player.pawn,
             steam_id: active_player.steam_id(self),
             health: active_player.health(self),
             armor: active_player.armor(self),
@@ -708,6 +717,237 @@ impl CS2 {
                 data.penetration_headshot_damage = Some(hs_dmg);
             }
         }
+
+        // 1. Sound ESP Events Calculation
+        let now = Instant::now();
+        let dt_sound = self.last_sound_update.elapsed().as_secs_f32();
+        self.last_sound_update = now;
+
+        for event in &mut self.sound_events {
+            event.age_secs += dt_sound;
+        }
+        self.sound_events.retain(|e| e.age_secs < 2.0);
+
+        for player in &data.players {
+            let speed = player.velocity.truncate().length();
+            let pos = player.position;
+            if player.shots_fired > 0 {
+                if !self.sound_events.iter().any(|e| (e.position - pos).length() < 50.0 && e.age_secs < 0.2) {
+                    self.sound_events.push(shared::data::SoundEventData {
+                        position: pos,
+                        event_type: shared::data::SoundEventType::Gunshot,
+                        age_secs: 0.0,
+                    });
+                }
+            } else if speed > 130.0 {
+                if !self.sound_events.iter().any(|e| (e.position - pos).length() < 40.0 && e.age_secs < 0.3) {
+                    self.sound_events.push(shared::data::SoundEventData {
+                        position: pos,
+                        event_type: shared::data::SoundEventType::Footstep,
+                        age_secs: 0.0,
+                    });
+                }
+            } else if player.is_defusing {
+                if !self.sound_events.iter().any(|e| (e.position - pos).length() < 50.0 && e.age_secs < 0.5) {
+                    self.sound_events.push(shared::data::SoundEventData {
+                        position: pos,
+                        event_type: shared::data::SoundEventType::BombDefuse,
+                        age_secs: 0.0,
+                    });
+                }
+            }
+        }
+        data.sound_events = self.sound_events.clone();
+
+        // 2. Grenade Warnings Calculation (Excludes Inferno/Molotov as they have dedicated ESP)
+        data.grenade_warnings.clear();
+        let local_pos = data.local_player.position;
+        for entity in &data.entities {
+            let (pos, gtype, blast_r) = match entity {
+                shared::entity::EntityInfo::HeGrenade(info) => (info.position, shared::data::GrenadeType::HE, 350.0),
+                shared::entity::EntityInfo::Smoke(info) => (info.position, shared::data::GrenadeType::Smoke, 144.0),
+                shared::entity::EntityInfo::Flashbang(info) => (info.position, shared::data::GrenadeType::Flash, 400.0),
+                shared::entity::EntityInfo::Decoy(info) => (info.position, shared::data::GrenadeType::Decoy, 100.0),
+                _ => continue,
+            };
+
+            let dist = (pos - local_pos).length();
+            let is_danger = dist <= blast_r;
+            let est_damage = if gtype == shared::data::GrenadeType::HE {
+                if dist < blast_r { ((1.0 - dist / blast_r) * 100.0) as i32 } else { 0 }
+            } else {
+                0
+            };
+
+            data.grenade_warnings.push(shared::data::GrenadeWarningData {
+                position: pos,
+                grenade_type: gtype,
+                blast_radius: blast_r,
+                distance_to_local: dist,
+                is_danger,
+                estimated_damage: est_damage,
+            });
+        }
+
+        // 3. Offscreen Indicators Calculation (Fixing Left/Right direction)
+        data.offscreen_players.clear();
+        let view_yaw = data.view_angles.y.to_radians();
+
+        for player in &data.players {
+            let delta_world = (player.position - local_pos).truncate();
+            let dist_m = delta_world.length() / 50.0;
+            if dist_m > 0.001 {
+                let dir = delta_world.normalize();
+                let enemy_angle = dir.y.atan2(dir.x);
+                let mut relative_angle = enemy_angle - view_yaw;
+                while relative_angle > std::f32::consts::PI { relative_angle -= 2.0 * std::f32::consts::PI; }
+                while relative_angle < -std::f32::consts::PI { relative_angle += 2.0 * std::f32::consts::PI; }
+
+                data.offscreen_players.push(shared::data::OffscreenPlayerData {
+                    angle_rad: relative_angle,
+                    distance_m: dist_m,
+                    health: player.health,
+                    team_is_friendly: false,
+                    visible: player.visible,
+                });
+            }
+        }
+
+        // 4. Hit Damage Markers Calculation (Debounced Health Delta & Fatal Kill-Shot Tracking)
+        let dt_hit = self.last_hit_marker_update.elapsed().as_secs_f32();
+        let now_instant = Instant::now();
+        self.last_hit_marker_update = now_instant;
+
+        for marker in &mut self.hit_damage_markers {
+            marker.age_secs += dt_hit;
+        }
+        self.hit_damage_markers.retain(|m| m.age_secs < 2.0);
+
+        let mut active_tracked_ids = std::collections::HashSet::new();
+
+        let local_damage_dealt = if data.total_damage > self.last_total_damage {
+            data.total_damage - self.last_total_damage
+        } else {
+            0
+        };
+        let is_local_shooting = local_damage_dealt > 0;
+
+        // Process active living enemy players
+        for player in &data.players {
+            let pawn_id = player.pawn;
+            if pawn_id == 0 {
+                continue;
+            }
+            active_tracked_ids.insert(pawn_id);
+            let current_hp = player.health;
+
+            if let Some(&prev_hp) = self.prev_enemy_health.get(&pawn_id) {
+                if current_hp < prev_hp && prev_hp > 0 && current_hp >= 0 {
+                    let dmg = (prev_hp - current_hp) as u32;
+                    if dmg > 0 && dmg <= 100 {
+                        let is_duplicate = if let Some(&(last_dmg, last_time)) = self.last_hit_tracker.get(&pawn_id) {
+                            last_dmg == dmg && last_time.elapsed().as_millis() < 250
+                        } else {
+                            false
+                        };
+
+                        if !is_duplicate {
+                            let should_track_local = !config.hud.hitsound.only_local_player || is_local_shooting;
+
+                            if should_track_local {
+                                let target_head = player.head;
+                                let screen_pos = crate::math::world_to_screen(&target_head, data)
+                                    .unwrap_or_else(|| egui::pos2(data.window_size.x / 2.0, data.window_size.y / 2.0 - 40.0));
+
+                                let is_kill = current_hp == 0;
+                                self.hit_damage_markers.push(shared::data::HitDamageMarkerData {
+                                    screen_pos: glam::vec2(screen_pos.x, screen_pos.y),
+                                    damage: dmg,
+                                    is_headshot: dmg >= 70 || is_kill,
+                                    age_secs: 0.0,
+                                });
+                                self.last_hit_tracker.insert(pawn_id, (dmg, now_instant));
+
+                                if config.hud.hitsound.enabled {
+                                    let should_play = if config.hud.hitsound.only_one_tap {
+                                        is_kill && (prev_hp >= 100 || dmg >= 100)
+                                    } else {
+                                        true
+                                    };
+
+                                    if should_play {
+                                        let preset = if is_kill {
+                                            config.hud.hitsound.kill_preset
+                                        } else {
+                                            config.hud.hitsound.preset
+                                        };
+                                        crate::os::sound::play_hitsound(
+                                            preset,
+                                            config.hud.hitsound.volume,
+                                            config.hud.hitsound.pitch,
+                                            &config.hud.hitsound.custom_wav_name,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            self.prev_enemy_health.insert(pawn_id, current_hp);
+        }
+
+        // Process dead players to catch the final fatal kill-shot
+        for player in &self.dead_players {
+            let pawn_id = player.pawn;
+            if pawn_id == 0 {
+                continue;
+            }
+            if let Some(&prev_hp) = self.prev_enemy_health.get(&pawn_id) {
+                if prev_hp > 0 {
+                    let dmg = prev_hp as u32;
+                    let should_track_local = !config.hud.hitsound.only_local_player || is_local_shooting;
+
+                    if should_track_local {
+                        let target_head = player.bone_position(self, shared::bones::Bones::Head.u64());
+                        let screen_pos = crate::math::world_to_screen(&target_head, data)
+                            .unwrap_or_else(|| egui::pos2(data.window_size.x / 2.0, data.window_size.y / 2.0 - 40.0));
+
+                        self.hit_damage_markers.push(shared::data::HitDamageMarkerData {
+                            screen_pos: glam::vec2(screen_pos.x, screen_pos.y),
+                            damage: dmg,
+                            is_headshot: true,
+                            age_secs: 0.0,
+                        });
+                        self.prev_enemy_health.insert(pawn_id, 0);
+
+                        if config.hud.hitsound.enabled {
+                            let should_play = if config.hud.hitsound.only_one_tap {
+                                prev_hp >= 100 || dmg >= 100
+                            } else {
+                                true
+                            };
+
+                            if should_play {
+                                crate::os::sound::play_hitsound(
+                                    config.hud.hitsound.kill_preset,
+                                    config.hud.hitsound.volume,
+                                    config.hud.hitsound.pitch,
+                                    &config.hud.hitsound.custom_wav_name,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Prune old entries
+        self.prev_enemy_health.retain(|id, hp| active_tracked_ids.contains(id) || *hp > 0);
+        self.last_hit_tracker.retain(|id, _| active_tracked_ids.contains(id));
+
+        self.last_total_damage = data.total_damage;
+        data.hit_damage_markers = self.hit_damage_markers.clone();
     }
 
     pub fn new() -> Self {
@@ -741,6 +981,13 @@ impl CS2 {
             last_trigger: Instant::now(),
             aimbot_predicted_damage: None,
             triggerbot_predicted_damage: None,
+            sound_events: Vec::new(),
+            last_sound_update: Instant::now(),
+            hit_damage_markers: Vec::new(),
+            last_hit_marker_update: Instant::now(),
+            last_total_damage: 0,
+            prev_enemy_health: std::collections::HashMap::new(),
+            last_hit_tracker: std::collections::HashMap::new(),
         }
     }
 

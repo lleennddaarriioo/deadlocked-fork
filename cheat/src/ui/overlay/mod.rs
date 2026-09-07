@@ -66,6 +66,10 @@ impl App {
         self.draw_hit_marker(&painter, data);
         self.draw_keybind_list(&painter, data);
         self.draw_spectator_list(&painter, data);
+        self.draw_sound_esp(&painter, data);
+        self.draw_grenade_warnings(&painter, data);
+        self.draw_offscreen_indicators(&painter, data);
+        self.draw_floating_damage_text(&painter, data);
 
         if data.aimbot_active {
             self.text(

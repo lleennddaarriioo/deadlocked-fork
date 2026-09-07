@@ -109,7 +109,7 @@ impl CS2 {
 
             let head_position = player.bone_position(self, Bones::Head.u64());
             let distance = eye_position.distance(head_position);
-            let dist_meters = distance * 0.0254;
+            let _dist_meters = distance * 0.0254;
             let angle = self.angle_to_target(&local_player, &head_position, &aim_punch);
             let fov = angles_to_fov(&view_angles, &angle);
 

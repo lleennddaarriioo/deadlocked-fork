@@ -24,6 +24,8 @@ pub enum SilentAimState {
 #[derive(Debug, Default)]
 pub struct Aimbot {
     pub active: bool,
+    pub is_locked: bool,
+    pub current_target_fov: f32,
     pub inertia: Vec2,
     pub saved_angles: Option<Vec2>,
     pub silent_mouse_angles: Option<Vec2>,
@@ -38,6 +40,9 @@ impl CS2 {
         crate::profile_scope!("aimbot");
         let hotkey = config.aim.aimbot_hotkey;
         let config = self.aimbot_config(config);
+
+        self.aim.is_locked = false;
+        self.aim.current_target_fov = 360.0;
 
         if !config.enabled {
             return false;
@@ -291,6 +296,9 @@ impl CS2 {
         let view_angles = local_player.view_angles(self);
 
         let current_fov = angles_to_fov(&view_angles, &target_angle);
+        self.aim.current_target_fov = current_fov;
+        self.aim.is_locked = current_fov <= max_fov;
+
         if current_fov > max_fov {
             ::utils::info!("[aimbot miss] target angle outside FOV threshold ({:.1} > {:.1})", current_fov, max_fov);
             return false;

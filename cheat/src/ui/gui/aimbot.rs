@@ -117,7 +117,7 @@ impl App {
 
             if checkbox_hover(
                 ui,
-                "Silent Aim (ST)",
+                "Silent Aim",
                 "Snaps to the target then immediately snaps back",
                 &mut self.weapon_config().aimbot.silent_aim,
             ) {
@@ -330,6 +330,26 @@ impl App {
         });
 
         ui.collapsing("Checks\u{200b}", |ui| {
+            if checkbox_hover(
+                ui,
+                "Only Shoot When Aimbot Locked",
+                "Only shoot if Aimbot is actively locked onto target within lock threshold",
+                &mut self.weapon_config().triggerbot.aimbot_lock_only,
+            ) {
+                self.send_config();
+            }
+
+            if drag(
+                ui,
+                "Lock FOV Threshold",
+                DragValue::new(&mut self.weapon_config().triggerbot.lock_fov_threshold)
+                    .range(0.1..=10.0)
+                    .speed(0.1)
+                    .suffix("°"),
+            ) {
+                self.send_config();
+            }
+
             if drag(
                 ui,
                 "Damage Threshold",

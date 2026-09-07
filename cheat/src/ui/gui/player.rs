@@ -98,6 +98,63 @@ impl App {
                 self.send_config();
             }
         });
+
+        ui.collapsing("Sound ESP", |ui| {
+            if checkbox(ui, "Enabled", &mut self.config.player.sound.enabled) {
+                self.send_config();
+            }
+            if drag(
+                ui,
+                "Footstep Diameter",
+                DragValue::new(&mut self.config.player.sound.footstep_diameter)
+                    .range(10.0..=500.0)
+                    .speed(1.0),
+            ) {
+                self.send_config();
+            }
+            if drag(
+                ui,
+                "Gunshot Diameter",
+                DragValue::new(&mut self.config.player.sound.gunshot_diameter)
+                    .range(10.0..=1000.0)
+                    .speed(1.0),
+            ) {
+                self.send_config();
+            }
+        });
+
+        ui.collapsing("Offscreen Indicators", |ui| {
+            if checkbox(ui, "Enabled", &mut self.config.player.offscreen.enabled) {
+                self.send_config();
+            }
+            if checkbox(ui, "Hide When Onscreen", &mut self.config.player.offscreen.hide_when_onscreen) {
+                self.send_config();
+            }
+            if drag(
+                ui,
+                "Radius (px)",
+                DragValue::new(&mut self.config.player.offscreen.radius_px)
+                    .range(50.0..=600.0)
+                    .speed(1.0),
+            ) {
+                self.send_config();
+            }
+            if drag(
+                ui,
+                "Arrow Size",
+                DragValue::new(&mut self.config.player.offscreen.size)
+                    .range(6.0..=40.0)
+                    .speed(0.5),
+            ) {
+                self.send_config();
+            }
+            if checkbox(ui, "Show Distance", &mut self.config.player.offscreen.show_distance) {
+                self.send_config();
+            }
+            if checkbox(ui, "Show Health", &mut self.config.player.offscreen.show_health) {
+                self.send_config();
+            }
+        });
     }
 
     fn player_right(&mut self, ui: &mut Ui) {

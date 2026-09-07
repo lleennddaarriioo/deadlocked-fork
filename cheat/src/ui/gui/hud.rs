@@ -2,7 +2,7 @@ use egui::{DragValue, Ui};
 
 use crate::ui::{
     app::App,
-    gui::helpers::{checkbox, collapsing_open, color_picker, drag, scroll, keybind},
+    gui::helpers::{checkbox, collapsing_open, color_picker, combo_box, drag, keybind, scroll},
 };
 
 impl App {
@@ -165,6 +165,163 @@ impl App {
             ) {
                 self.send_config();
             }
+        });
+
+        ui.collapsing("Grenade Warnings", |ui| {
+            if checkbox(ui, "Enabled", &mut self.config.hud.grenade_warning.enabled) {
+                self.send_config();
+            }
+            if checkbox(ui, "3D Blast Radius Circles", &mut self.config.hud.grenade_warning.draw_radius) {
+                self.send_config();
+            }
+            if checkbox(ui, "HUD Danger Alert Banner", &mut self.config.hud.grenade_warning.danger_banner) {
+                self.send_config();
+            }
+        });
+
+        ui.collapsing("Floating Damage Text", |ui| {
+            if checkbox(ui, "Enabled", &mut self.config.hud.floating_damage.enabled) {
+                self.send_config();
+            }
+            if drag(
+                ui,
+                "Duration (s)",
+                DragValue::new(&mut self.config.hud.floating_damage.duration_secs)
+                    .range(0.5..=5.0)
+                    .speed(0.1),
+            ) {
+                self.send_config();
+            }
+            if drag(
+                ui,
+                "Text Scale",
+                DragValue::new(&mut self.config.hud.floating_damage.scale)
+                    .range(0.5..=3.0)
+                    .speed(0.1),
+            ) {
+                self.send_config();
+            }
+        });
+
+        ui.collapsing("Hitsounds & Kill Sounds", |ui| {
+            if checkbox(ui, "Enable Hitsounds", &mut self.config.hud.hitsound.enabled) {
+                self.send_config();
+                if self.config.hud.hitsound.enabled {
+                    crate::os::sound::play_hitsound(
+                        self.config.hud.hitsound.preset,
+                        self.config.hud.hitsound.volume,
+                        self.config.hud.hitsound.pitch,
+                        &self.config.hud.hitsound.custom_wav_name,
+                    );
+                }
+            }
+
+            if checkbox(ui, "Only Local Player Shots (Ignore Bot vs Bot Hits)", &mut self.config.hud.hitsound.only_local_player) {
+                self.send_config();
+            }
+
+            if checkbox(ui, "Only 1-Tap Kills (Fatal Shots Only)", &mut self.config.hud.hitsound.only_one_tap) {
+                self.send_config();
+            }
+
+            if combo_box(
+                ui,
+                "hitsound_preset",
+                "Hit Sound Preset",
+                &mut self.config.hud.hitsound.preset,
+            ) {
+                self.send_config();
+                crate::os::sound::play_hitsound(
+                    self.config.hud.hitsound.preset,
+                    self.config.hud.hitsound.volume,
+                    self.config.hud.hitsound.pitch,
+                    &self.config.hud.hitsound.custom_wav_name,
+                );
+            }
+
+            if combo_box(
+                ui,
+                "killsound_preset",
+                "Kill Sound Preset",
+                &mut self.config.hud.hitsound.kill_preset,
+            ) {
+                self.send_config();
+                crate::os::sound::play_hitsound(
+                    self.config.hud.hitsound.kill_preset,
+                    self.config.hud.hitsound.volume,
+                    self.config.hud.hitsound.pitch,
+                    &self.config.hud.hitsound.custom_wav_name,
+                );
+            }
+
+            if drag(
+                ui,
+                "Volume",
+                DragValue::new(&mut self.config.hud.hitsound.volume)
+                    .range(0.0..=1.0)
+                    .speed(0.05),
+            ) {
+                self.send_config();
+                crate::os::sound::play_hitsound(
+                    self.config.hud.hitsound.preset,
+                    self.config.hud.hitsound.volume,
+                    self.config.hud.hitsound.pitch,
+                    &self.config.hud.hitsound.custom_wav_name,
+                );
+            }
+
+            if drag(
+                ui,
+                "Pitch (x)",
+                DragValue::new(&mut self.config.hud.hitsound.pitch)
+                    .range(0.5..=2.0)
+                    .speed(0.05),
+            ) {
+                self.send_config();
+                crate::os::sound::play_hitsound(
+                    self.config.hud.hitsound.preset,
+                    self.config.hud.hitsound.volume,
+                    self.config.hud.hitsound.pitch,
+                    &self.config.hud.hitsound.custom_wav_name,
+                );
+            }
+
+            if self.config.hud.hitsound.preset == crate::config::hud::HitsoundPreset::CustomWav
+                || self.config.hud.hitsound.kill_preset == crate::config::hud::HitsoundPreset::CustomWav
+            {
+                ui.horizontal(|ui| {
+                    ui.label("WAV File:");
+                    if ui.text_edit_singleline(&mut self.config.hud.hitsound.custom_wav_name).changed() {
+                        self.send_config();
+                        crate::os::sound::play_hitsound(
+                            self.config.hud.hitsound.preset,
+                            self.config.hud.hitsound.volume,
+                            self.config.hud.hitsound.pitch,
+                            &self.config.hud.hitsound.custom_wav_name,
+                        );
+                    }
+                });
+            }
+
+            ui.horizontal(|ui| {
+                if ui.button("🔊 Test Hit").clicked() {
+                    crate::os::sound::play_hitsound(
+                        self.config.hud.hitsound.preset,
+                        self.config.hud.hitsound.volume,
+                        self.config.hud.hitsound.pitch,
+                        &self.config.hud.hitsound.custom_wav_name,
+                    );
+                }
+
+                if ui.button("💀 Test Kill").clicked() {
+                    crate::os::sound::play_hitsound(
+                        self.config.hud.hitsound.kill_preset,
+                        self.config.hud.hitsound.volume,
+                        self.config.hud.hitsound.pitch,
+                        &self.config.hud.hitsound.custom_wav_name,
+                    );
+                }
+            });
         });
 
         ui.collapsing("Sniper Crosshair", |ui| {

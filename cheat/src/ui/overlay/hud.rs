@@ -449,4 +449,213 @@ impl App {
         painter.line_segment([pos2(pos.x - gap, pos.y), pos2(pos.x - gap - length, pos.y)], stroke);
         painter.line_segment([pos2(pos.x, pos.y - gap), pos2(pos.x, pos.y - gap - length)], stroke);
     }
+
+    pub fn draw_sound_esp(&self, painter: &Painter, data: &Data) {
+        if !self.config.player.sound.enabled {
+            return;
+        }
+
+        for event in &data.sound_events {
+            let fade = (1.0 - event.age_secs / 2.0).clamp(0.0, 1.0);
+            if fade <= 0.0 {
+                continue;
+            }
+
+            let max_r = match event.event_type {
+                shared::data::SoundEventType::Footstep => self.config.player.sound.footstep_diameter * 0.5,
+                shared::data::SoundEventType::Gunshot => self.config.player.sound.gunshot_diameter * 0.5,
+                _ => self.config.player.sound.weapon_diameter * 0.5,
+            };
+
+            let current_r = max_r * (1.0 - fade * 0.5);
+            let alpha = (180.0 * fade) as u8;
+
+            let color = match event.event_type {
+                shared::data::SoundEventType::Footstep => Color32::from_rgba_unmultiplied(255, 200, 0, alpha),
+                shared::data::SoundEventType::Gunshot => Color32::from_rgba_unmultiplied(255, 50, 50, alpha),
+                shared::data::SoundEventType::BombPlant | shared::data::SoundEventType::BombDefuse => Color32::from_rgba_unmultiplied(255, 0, 255, alpha),
+                _ => Color32::from_rgba_unmultiplied(0, 229, 255, alpha),
+            };
+
+            // Draw 3D floor circle
+            let mut pts = Vec::with_capacity(16);
+            for i in 0..16 {
+                let rad = (i as f32 / 16.0) * std::f32::consts::TAU;
+                let world_pt = event.position + glam::vec3(current_r * rad.cos(), current_r * rad.sin(), 0.0);
+                if let Some(screen_pt) = world_to_screen(&world_pt, data) {
+                    pts.push(screen_pt);
+                }
+            }
+
+            if pts.len() >= 3 {
+                painter.add(egui::Shape::convex_polygon(
+                    pts.clone(),
+                    Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), alpha / 4),
+                    Stroke::new(1.5, color),
+                ));
+            }
+
+            if let Some(icon_pos) = world_to_screen(&event.position, data) {
+                let icon_str = match event.event_type {
+                    shared::data::SoundEventType::Footstep => "👣",
+                    shared::data::SoundEventType::Gunshot => "💥",
+                    shared::data::SoundEventType::Weapon => "🔫",
+                    shared::data::SoundEventType::BombPlant => "💣",
+                    shared::data::SoundEventType::BombDefuse => "✂️",
+                    shared::data::SoundEventType::Reload => "🔄",
+                    shared::data::SoundEventType::Scope => "🔍",
+                };
+                self.text(painter, icon_str, icon_pos, Align2::CENTER_CENTER, Some(color));
+            }
+        }
+    }
+
+    pub fn draw_grenade_warnings(&self, painter: &Painter, data: &Data) {
+        if !self.config.hud.grenade_warning.enabled {
+            return;
+        }
+
+        let mut max_danger_dmg = 0;
+        let mut danger_gname = "HE GRENADE";
+
+        for warning in &data.grenade_warnings {
+            if self.config.hud.grenade_warning.draw_radius {
+                let (r, g, b) = match warning.grenade_type {
+                    shared::data::GrenadeType::HE => (255, 50, 50),
+                    shared::data::GrenadeType::Molotov => (255, 140, 0),
+                    shared::data::GrenadeType::Smoke => (180, 180, 180),
+                    shared::data::GrenadeType::Flash => (255, 255, 200),
+                    shared::data::GrenadeType::Decoy => (180, 100, 255),
+                };
+                let stroke_color = Color32::from_rgba_unmultiplied(r, g, b, 200);
+                let fill_color = Color32::from_rgba_unmultiplied(r, g, b, 40);
+
+                let mut pts = Vec::with_capacity(16);
+                for i in 0..16 {
+                    let rad = (i as f32 / 16.0) * std::f32::consts::TAU;
+                    let world_pt = warning.position + glam::vec3(warning.blast_radius * rad.cos(), warning.blast_radius * rad.sin(), 0.0);
+                    if let Some(screen_pt) = world_to_screen(&world_pt, data) {
+                        pts.push(screen_pt);
+                    }
+                }
+
+                if pts.len() >= 3 {
+                    painter.add(egui::Shape::convex_polygon(
+                        pts,
+                        fill_color,
+                        Stroke::new(2.0, stroke_color),
+                    ));
+                }
+            }
+
+            if warning.is_danger && warning.estimated_damage > max_danger_dmg {
+                max_danger_dmg = warning.estimated_damage;
+                danger_gname = match warning.grenade_type {
+                    shared::data::GrenadeType::HE => "HE GRENADE",
+                    shared::data::GrenadeType::Molotov => "MOLOTOV / INFERNO",
+                    _ => "EXPLOSIVE",
+                };
+            }
+        }
+
+        if self.config.hud.grenade_warning.danger_banner && max_danger_dmg > 0 {
+            let banner_center = pos2(data.window_size.x / 2.0, 120.0);
+            let rect = egui::Rect::from_center_size(banner_center, egui::vec2(360.0, 42.0));
+            painter.rect(
+                rect,
+                6.0,
+                Color32::from_rgba_unmultiplied(180, 20, 20, 230),
+                Stroke::new(2.0, Color32::YELLOW),
+                egui::StrokeKind::Middle,
+            );
+            self.text(
+                painter,
+                format!("⚠️ DANGER: {} BLAST ZONE (-{} HP)", danger_gname, max_danger_dmg),
+                banner_center,
+                Align2::CENTER_CENTER,
+                Some(Color32::WHITE),
+            );
+        }
+    }
+
+    pub fn draw_offscreen_indicators(&self, painter: &Painter, data: &Data) {
+        if !self.config.player.offscreen.enabled {
+            return;
+        }
+
+        let center = pos2(data.window_size.x / 2.0, data.window_size.y / 2.0);
+        let r = self.config.player.offscreen.radius_px;
+        let s = self.config.player.offscreen.size;
+
+        for player in &data.offscreen_players {
+            let angle = -player.angle_rad - std::f32::consts::FRAC_PI_2;
+            let tip = pos2(center.x + r * angle.cos(), center.y + r * angle.sin());
+
+            let left = pos2(tip.x - s * (angle + 0.4).cos(), tip.y - s * (angle + 0.4).sin());
+            let right = pos2(tip.x - s * (angle - 0.4).cos(), tip.y - s * (angle - 0.4).sin());
+
+            let color = if player.visible {
+                Color32::YELLOW
+            } else if player.team_is_friendly {
+                Color32::from_rgb(0, 229, 255)
+            } else {
+                Color32::RED
+            };
+
+            painter.add(egui::Shape::convex_polygon(
+                vec![tip, left, right],
+                color,
+                Stroke::new(1.0, Color32::BLACK),
+            ));
+
+            if self.config.player.offscreen.show_distance {
+                let dist_pos = pos2(tip.x + (s * 0.8) * angle.cos(), tip.y + (s * 0.8) * angle.sin());
+                self.text_sized(
+                    painter,
+                    format!("{:.0}m", player.distance_m),
+                    dist_pos,
+                    Align2::CENTER_CENTER,
+                    Some(Color32::WHITE),
+                    12.0,
+                );
+            }
+        }
+    }
+
+    pub fn draw_floating_damage_text(&self, painter: &Painter, data: &Data) {
+        if !self.config.hud.floating_damage.enabled {
+            return;
+        }
+
+        for marker in &data.hit_damage_markers {
+            let fade = (1.0 - marker.age_secs / self.config.hud.floating_damage.duration_secs).clamp(0.0, 1.0);
+            if fade <= 0.0 {
+                continue;
+            }
+
+            let float_up = marker.age_secs * 40.0;
+            let pos = pos2(marker.screen_pos.x, marker.screen_pos.y - 30.0 - float_up);
+
+            let (text_str, color) = if marker.is_headshot {
+                (
+                    format!("-{}", marker.damage),
+                    Color32::from_rgba_unmultiplied(255, 30, 30, (255.0 * fade) as u8),
+                )
+            } else {
+                (
+                    format!("-{}", marker.damage),
+                    Color32::from_rgba_unmultiplied(255, 180, 50, (255.0 * fade) as u8),
+                )
+            };
+
+            self.text_sized(
+                painter,
+                text_str,
+                pos,
+                Align2::CENTER_CENTER,
+                Some(color),
+                22.0 * self.config.hud.floating_damage.scale,
+            );
+        }
+    }
 }

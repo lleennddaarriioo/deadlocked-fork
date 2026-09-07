@@ -6,10 +6,59 @@ use serde::{Deserialize, Serialize};
 use crate::{bones::Bones, entity::EntityInfo, weapon::Weapon};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub enum SoundType {
+pub enum SoundEventType {
     Footstep,
     Gunshot,
     Weapon,
+    BombPlant,
+    BombDefuse,
+    Reload,
+    Scope,
+}
+
+pub type SoundType = SoundEventType;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SoundEventData {
+    pub position: Vec3,
+    pub event_type: SoundEventType,
+    pub age_secs: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum GrenadeType {
+    HE,
+    Molotov,
+    Smoke,
+    Flash,
+    Decoy,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GrenadeWarningData {
+    pub position: Vec3,
+    pub grenade_type: GrenadeType,
+    pub blast_radius: f32,
+    pub distance_to_local: f32,
+    pub is_danger: bool,
+    pub estimated_damage: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OffscreenPlayerData {
+    pub angle_rad: f32,
+    pub distance_m: f32,
+    pub health: i32,
+    pub team_is_friendly: bool,
+    pub visible: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HitDamageMarkerData {
+    pub screen_pos: Vec2,
+    pub damage: u32,
+    pub is_headshot: bool,
+    pub age_secs: f32,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -45,10 +94,15 @@ pub struct Data {
     pub penetration_headshot_damage: Option<f32>,
     pub jump_cps: u32,
     pub total_cps: u32,
+    pub sound_events: Vec<SoundEventData>,
+    pub grenade_warnings: Vec<GrenadeWarningData>,
+    pub offscreen_players: Vec<OffscreenPlayerData>,
+    pub hit_damage_markers: Vec<HitDamageMarkerData>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PlayerData {
+    pub pawn: u64,
     pub steam_id: u64,
     pub health: i32,
     pub armor: i32,
