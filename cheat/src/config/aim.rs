@@ -2,12 +2,12 @@ use std::{collections::HashMap, ops::RangeInclusive};
 
 use glam::Vec2;
 use serde::{Deserialize, Serialize};
-use shared::{bones::Bones, weapon::Weapon};
+use shared::{Bones, Weapon};
 use strum::{EnumIter, IntoEnumIterator};
 
 use crate::cs2::key_codes::KeyCode;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct WeaponConfig {
     pub aimbot: AimbotConfig,
@@ -35,6 +35,19 @@ pub enum VisibilityMode {
     BoneFast,
 }
 
+impl std::fmt::Display for VisibilityMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                VisibilityMode::BoneLoS => "Bone LoS",
+                VisibilityMode::BoneFast => "Bone Fast",
+            }
+        )
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AimbotConfig {
@@ -51,6 +64,8 @@ pub struct AimbotConfig {
     pub smooth: f32,
     pub silent_aim: bool,
     pub inertia: f32,
+    /// Seconds of target motion to lead when aiming.
+    pub prediction_time: f32,
     pub bones: Vec<Bones>,
     pub bone_mode: BoneMode,
     pub targeting_mode: TargetingMode,
@@ -73,6 +88,7 @@ impl Default for AimbotConfig {
             smooth: 5.0,
             silent_aim: false,
             inertia: 1.0,
+            prediction_time: 0.05,
             bones: vec![
                 Bones::Head,
                 Bones::Neck,
@@ -88,7 +104,7 @@ impl Default for AimbotConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RcsConfig {
     pub enable_override: bool,
@@ -112,10 +128,30 @@ pub enum KeyMode {
     Toggle,
 }
 
+impl std::fmt::Display for KeyMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Hold => "Hold",
+            Self::Toggle => "Toggle",
+        }
+        .fmt(f)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumIter)]
 pub enum BoneMode {
     Nearest,
     Priority,
+}
+
+impl std::fmt::Display for BoneMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Nearest => "Nearest",
+            Self::Priority => "Priority",
+        }
+        .fmt(f)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumIter)]
@@ -124,7 +160,17 @@ pub enum TargetingMode {
     Distance,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl std::fmt::Display for TargetingMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Fov => "FOV",
+            Self::Distance => "Distance",
+        }
+        .fmt(f)
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TriggerbotConfig {
     pub enable_override: bool,
@@ -168,7 +214,7 @@ impl Default for TriggerbotConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AimConfig {
     pub aimbot_hotkey: KeyCode,

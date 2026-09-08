@@ -1,14 +1,12 @@
 use std::{
     collections::{HashMap, VecDeque},
+    ops::{Deref, DerefMut},
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
 
-use shared::{
-    data::{Data, SoundType},
-    weapon::Weapon,
-};
+use shared::{Data, SoundType, Weapon};
 use utils::{Channel, Mutex};
 use winit::{
     application::ApplicationHandler,
@@ -19,30 +17,28 @@ use winit::{
 use crate::{
     config::{
         CONFIG_PATH, Config, DEFAULT_CONFIG_NAME,
-        application::{ApplicationConfig, read_app_config},
+        application::{ApplicationConfig, read_app_config, write_app_config},
         available_configs, parse_config, write_config,
     },
-    message::{GameMessage, GameStatus, UiMessage},
+    message::{GameMessage, GameStatus, RadarMessage, RadarStatus, UiMessage},
     ui::{
         grenades::{Grenade, GrenadeList, read_grenades},
         gui::{Tab, aimbot::AimbotTab},
+        overlay::model::ModelRenderer,
         trail::Trail,
         window_context::WindowContext,
     },
+    update::UpdateStatus,
 };
 
-pub struct App {
-    pub gui: Option<WindowContext>,
-    pub overlay: Option<WindowContext>,
-    next_frame_time: Instant,
-    pub show_about: bool,
-
-    pub channel: Channel<GameMessage, UiMessage>,
+pub struct AppState {
+    pub channel_game: Channel<GameMessage, UiMessage>,
+    pub channel_radar: Channel<RadarMessage, RadarStatus>,
     pub data: Arc<Mutex<Data>>,
 
     pub game_status: GameStatus,
     pub display_scale: f32,
-    pub trails: HashMap<u64, Trail>,
+    pub trails: HashMap<usize, Trail>,
     pub player_sounds: HashMap<u64, (Instant, SoundType)>,
     pub frame_times: VecDeque<Duration>,
 
@@ -83,44 +79,67 @@ pub struct App {
     pub demo_mode: bool,
     pub demo_last_step: Instant,
     pub demo_tab_idx: usize,
+
+    pub update_status: UpdateStatus,
+    pub text_popup: Option<String>,
+    pub update_popup: bool,
+    pub overlay_egui: Option<egui::Context>,
+    pub model_renderer: Option<Arc<ModelRenderer>>,
+    pub radar_status: RadarStatus,
 }
 
-impl App {
-    pub fn new(channel: Channel<GameMessage, UiMessage>, data: Arc<Mutex<Data>>) -> Self {
-        // read config
+pub struct App {
+    pub gui: Option<WindowContext>,
+    pub overlay: Option<WindowContext>,
+    next_frame_time: Instant,
+    pub state: AppState,
+}
+
+impl Deref for App {
+    type Target = AppState;
+    fn deref(&self) -> &AppState {
+        &self.state
+    }
+}
+
+impl DerefMut for App {
+    fn deref_mut(&mut self) -> &mut AppState {
+        &mut self.state
+    }
+}
+
+impl AppState {
+    pub fn new(
+        channel_game: Channel<GameMessage, UiMessage>,
+        channel_radar: Channel<RadarMessage, RadarStatus>,
+        data: Arc<Mutex<Data>>,
+    ) -> Self {
         let config = parse_config(&CONFIG_PATH.join(DEFAULT_CONFIG_NAME));
-        // override config if invalid
         write_config(&config, &CONFIG_PATH.join(DEFAULT_CONFIG_NAME));
         let grenades = read_grenades();
-
         let app_config = read_app_config();
+        write_app_config(&app_config);
 
-        let ret = Self {
-            gui: None,
-            overlay: None,
+        let update_status = crate::update::check();
+        let update_popup = matches!(update_status, crate::update::UpdateStatus::Available { .. });
 
-            next_frame_time: Instant::now() + Duration::from_millis(16),
-            show_about: false,
-
-            channel,
+        Self {
+            channel_game,
+            channel_radar,
             data,
-
             app_config,
             config,
             current_config: CONFIG_PATH.join(DEFAULT_CONFIG_NAME),
             available_configs: available_configs(),
             new_config_name: String::new(),
-
             game_status: GameStatus::NotStarted,
             display_scale: 1.0,
             trails: HashMap::new(),
             player_sounds: HashMap::new(),
             frame_times: VecDeque::with_capacity(500),
-
             grenades,
             new_grenade: Grenade::new(),
             current_grenade: None,
-
             current_tab: Tab::default(),
             aimbot_tab: AimbotTab::default(),
             aimbot_weapon: Weapon::default(),
@@ -147,24 +166,50 @@ impl App {
             demo_mode: false,
             demo_last_step: Instant::now(),
             demo_tab_idx: 0,
+
+            update_status,
+            text_popup: None,
+            update_popup,
+            overlay_egui: None,
+            model_renderer: None,
+            radar_status: RadarStatus::Disabled,
+        }
+    }
+}
+
+impl App {
+    pub fn new(
+        channel_game: Channel<GameMessage, UiMessage>,
+        channel_radar: Channel<RadarMessage, RadarStatus>,
+        data: Arc<Mutex<Data>>,
+    ) -> Self {
+        let state = AppState::new(channel_game, channel_radar, data);
+        let ret = Self {
+            gui: None,
+            overlay: None,
+            next_frame_time: Instant::now() + Duration::from_millis(16),
+            state,
         };
+        ret.send_config_game();
+        ret.send_config_radar();
         ret
     }
 
-    fn create_window(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        let gui = WindowContext::new(event_loop, false, self.config.accent_color);
-        let overlay = WindowContext::new(event_loop, true, self.config.accent_color);
+    pub fn create_window(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        let gui = WindowContext::new(event_loop, false, self.state.config.accent_color);
+        let overlay = WindowContext::new(event_loop, true, self.state.config.accent_color);
 
-        self.config.font.set(gui.egui());
-        self.config.font.set(overlay.egui());
+        self.state.config.font.set(gui.egui());
+        self.state.config.font.set(overlay.egui());
 
-        if self.demo_mode {
+        self.state.display_scale = if self.demo_mode {
             let _ = gui.window().request_inner_size(winit::dpi::LogicalSize::new(1280, 720));
-            self.display_scale = 1.25;
+            1.25
         } else {
-            self.display_scale = gui.window().scale_factor() as f32;
-        }
-        utils::info!("detected display scale: {}", self.display_scale);
+            gui.window().scale_factor() as f32
+        };
+        self.state.overlay_egui = Some(overlay.egui().clone());
+        utils::info!("detected display scale: {}", self.state.display_scale);
 
         self.gui = Some(gui);
         self.overlay = Some(overlay);
@@ -232,16 +277,20 @@ impl ApplicationHandler for App {
         window_id: winit::window::WindowId,
         window_event: WindowEvent,
     ) {
-        while let Ok(message) = self.channel.try_receive() {
+        while let Ok(message) = self.state.channel_game.try_receive() {
             match message {
-                UiMessage::Status(status) => self.game_status = status,
+                UiMessage::Status(status) => self.state.game_status = status,
                 UiMessage::FrameTime(time) => {
-                    if self.frame_times.len() >= 500 {
-                        self.frame_times.pop_front();
+                    if self.state.frame_times.len() >= 500 {
+                        self.state.frame_times.pop_front();
                     }
-                    self.frame_times.push_back(time);
+                    self.state.frame_times.push_back(time);
                 }
             }
+        }
+
+        while let Ok(message) = self.state.channel_radar.try_receive() {
+            self.state.radar_status = message;
         }
 
         let Some(gui) = &self.gui else {

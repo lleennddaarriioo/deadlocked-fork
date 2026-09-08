@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use shared::data::Data;
+use shared::Data;
 use utils::{Channel, Mutex};
 
 use crate::{
@@ -92,7 +92,7 @@ impl GameManager {
             mouse,
             keyboard,
             cs2: CS2::new(),
-            previous_weapon: shared::weapon::Weapon::Unknown,
+            previous_weapon: shared::weapon::Weapon::None,
             last_shots_fired: 0,
             last_total_damage: 0,
             last_shot_info: None,
@@ -138,7 +138,7 @@ impl GameManager {
                 self.cs2.data(&self.config, &mut data);
 
                 if data.weapon != self.previous_weapon {
-                    if data.weapon != shared::weapon::Weapon::Unknown {
+                    if data.weapon != shared::weapon::Weapon::None {
                         utils::info!("[WEAPON] Switched to: {} (Damage: {})", data.weapon, data.weapon.damage_description());
                     }
                     self.previous_weapon = data.weapon.clone();

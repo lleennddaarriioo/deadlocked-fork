@@ -111,7 +111,7 @@ impl CounterStrafe {
             return;
         }
 
-        let velocity = process.read::<glam::Vec3>(local_player.pawn + offsets.pawn.velocity);
+        let velocity = process.read::<glam::Vec3>(local_player.pawn.handle + offsets.entity.velocity);
         let speed = (velocity.x * velocity.x + velocity.y * velocity.y).sqrt();
         let view_angles = local_player.view_angles_direct(process, offsets);
         
@@ -186,8 +186,8 @@ impl CounterStrafe {
             return;
         }
 
-        let health = process.read::<i32>(local_player.pawn + offsets.pawn.health);
-        let life_state = process.read::<u8>(local_player.pawn + offsets.pawn.life_state);
+        let health = process.read::<i32>(local_player.pawn.handle + offsets.entity.health);
+        let life_state = process.read::<u8>(local_player.pawn.handle + offsets.entity.life_state);
         if health <= 0 || life_state != 0 {
             return;
         }

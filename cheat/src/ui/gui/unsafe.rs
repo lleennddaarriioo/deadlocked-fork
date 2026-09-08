@@ -1,11 +1,11 @@
 use egui::{DragValue, Ui};
 
 use crate::ui::{
-    app::App,
+    app::AppState,
     gui::helpers::{collapsing_open, color_picker, keybind},
 };
 
-impl App {
+impl AppState {
     pub fn unsafe_settings(&mut self, ui: &mut Ui) {
         ui.columns(2, |cols| {
             let left = &mut cols[0];
@@ -30,7 +30,7 @@ impl App {
                 .checkbox(&mut self.config.misc.no_smoke, "No Smoke")
                 .changed()
             {
-                self.send_config();
+                self.send_config_game();
             }
 
             if ui
@@ -40,11 +40,11 @@ impl App {
                 )
                 .changed()
             {
-                self.send_config();
+                self.send_config_game();
             }
 
             if color_picker(ui, "Smoke Color", &mut self.config.misc.smoke_color) {
-                self.send_config();
+                self.send_config_game();
             }
         });
     }
@@ -183,7 +183,7 @@ impl App {
                 .checkbox(&mut self.config.misc.no_flash, "No Flash")
                 .changed()
             {
-                self.send_config();
+                self.send_config_game();
             }
 
             ui.horizontal(|ui| {
@@ -196,7 +196,7 @@ impl App {
                     )
                     .changed()
                 {
-                    self.send_config();
+                    self.send_config_game();
                 }
                 ui.label("Max Flash Alpha");
             });
@@ -209,7 +209,7 @@ impl App {
                 .checkbox(&mut self.config.misc.fov_changer, "FOV Changer")
                 .changed()
             {
-                self.send_config();
+                self.send_config_game();
             }
 
             ui.horizontal(|ui| {
@@ -221,13 +221,13 @@ impl App {
                     )
                     .changed()
                 {
-                    self.send_config();
+                    self.send_config_game();
                 }
                 ui.label("Desired FOV");
 
                 if ui.button("Reset").clicked() {
                     self.config.misc.desired_fov = crate::constants::cs2::DEFAULT_FOV;
-                    self.send_config();
+                    self.send_config_game();
                 }
             });
         });

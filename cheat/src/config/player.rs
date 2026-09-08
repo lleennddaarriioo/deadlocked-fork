@@ -11,16 +11,108 @@ pub enum DrawMode {
     Color,
 }
 
+impl std::fmt::Display for DrawMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::None => "None",
+            Self::Health => "Health",
+            Self::Color => "Color",
+        }
+        .fmt(f)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, EnumIter, Serialize, Deserialize)]
+pub enum SnaplineMode {
+    None,
+    Health,
+    Distance,
+    Color,
+}
+
+impl std::fmt::Display for SnaplineMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::None => "None",
+            Self::Health => "Health",
+            Self::Distance => "Distance",
+            Self::Color => "Color",
+        }
+        .fmt(f)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, EnumIter, Serialize, Deserialize)]
+pub enum SnaplineAnchor {
+    Center,
+    Bottom,
+}
+
+impl std::fmt::Display for SnaplineAnchor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Center => "Center",
+            Self::Bottom => "Bottom",
+        }
+        .fmt(f)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, EnumIter, Serialize, Deserialize)]
 pub enum BoxMode {
     Gap,
     Full,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl std::fmt::Display for BoxMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Gap => "Gap",
+            Self::Full => "Full",
+        }
+        .fmt(f)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, EnumIter, Serialize, Deserialize)]
+pub enum ModelRenderMode {
+    Filled,
+    Wireframe,
+}
+
+impl std::fmt::Display for ModelRenderMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Filled => "Filled",
+            Self::Wireframe => "Wireframe",
+        }
+        .fmt(f)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, EnumIter, Serialize, Deserialize)]
+pub enum VisibilityMode {
+    All,
+    InvisibleOnly,
+    VisibleOnly,
+}
+
+impl std::fmt::Display for VisibilityMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::All => "All",
+            Self::InvisibleOnly => "Invisible Only",
+            Self::VisibleOnly => "Visible Only",
+        }
+        .fmt(f)
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PlayerConfig {
     pub enabled: bool,
+    pub chicken: bool,
     pub esp_hotkey: KeyCode,
     pub show_friendlies: bool,
     pub draw_box: DrawMode,
@@ -28,8 +120,15 @@ pub struct PlayerConfig {
     pub draw_chams: bool,
     pub box_visible_color: Color32,
     pub box_invisible_color: Color32,
+    pub snaplines: SnaplineMode,
+    pub snapline_color: Color32,
+    pub snapline_anchor: SnaplineAnchor,
     pub draw_skeleton: DrawMode,
     pub skeleton_color: Color32,
+    pub draw_model: DrawMode,
+    pub model_mode: ModelRenderMode,
+    pub model_visible_color: Color32,
+    pub model_invisible_color: Color32,
     pub head_circle: bool,
     pub health_bar: bool,
     pub armor_bar: bool,
@@ -38,6 +137,7 @@ pub struct PlayerConfig {
     pub tags: bool,
     pub visible_only: bool,
     pub target_player_name: String,
+    pub visibility: VisibilityMode,
     pub sound: SoundConfig,
     pub offscreen: OffscreenConfig,
 }
@@ -46,6 +146,7 @@ impl Default for PlayerConfig {
     fn default() -> Self {
         Self {
             enabled: true,
+            chicken: true,
             esp_hotkey: KeyCode::X,
             show_friendlies: false,
             draw_box: DrawMode::Color,
@@ -53,8 +154,15 @@ impl Default for PlayerConfig {
             draw_chams: false,
             box_visible_color: Color32::WHITE,
             box_invisible_color: Color32::RED,
+            snaplines: SnaplineMode::None,
+            snapline_color: Color32::PURPLE,
+            snapline_anchor: SnaplineAnchor::Center,
             draw_skeleton: DrawMode::Health,
             skeleton_color: Color32::WHITE,
+            draw_model: DrawMode::Health,
+            model_mode: ModelRenderMode::Filled,
+            model_visible_color: Color32::from_rgba_unmultiplied(255, 255, 255, 127),
+            model_invisible_color: Color32::from_rgba_unmultiplied(255, 0, 0, 127),
             head_circle: true,
             health_bar: true,
             armor_bar: true,
@@ -63,6 +171,7 @@ impl Default for PlayerConfig {
             tags: true,
             visible_only: false,
             target_player_name: String::new(),
+            visibility: VisibilityMode::All,
             sound: SoundConfig::default(),
             offscreen: OffscreenConfig::default(),
         }
@@ -93,7 +202,7 @@ impl Default for OffscreenConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SoundConfig {
     pub enabled: bool,

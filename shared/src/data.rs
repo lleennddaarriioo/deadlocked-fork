@@ -3,7 +3,12 @@ use std::collections::HashMap;
 use glam::{Mat4, Vec2, Vec3};
 use serde::{Deserialize, Serialize};
 
-use crate::{bones::Bones, entity::EntityInfo, weapon::Weapon};
+use crate::{
+    bones::{BoneTransform, Bones},
+    entity::EntityInfo,
+    team::Team,
+    weapon::Weapon,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum SoundEventType {
@@ -73,12 +78,19 @@ pub struct Data {
     pub entities: Vec<EntityInfo>,
     pub bomb: BombData,
     pub map_name: String,
+    #[serde(skip)]
     pub view_matrix: Mat4,
+    #[serde(skip)]
     pub view_angles: Vec2,
+    #[serde(skip)]
     pub window_position: Vec2,
+    #[serde(skip)]
     pub window_size: Vec2,
+    #[serde(skip)]
     pub aimbot_active: bool,
+    #[serde(skip)]
     pub triggerbot_active: bool,
+    #[serde(skip)]
     pub esp_active: bool,
     pub item_esp_active: bool,
     pub total_damage: u32,
@@ -100,24 +112,35 @@ pub struct Data {
     pub hit_damage_markers: Vec<HitDamageMarkerData>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct PlayerData {
     pub pawn: u64,
     pub steam_id: u64,
+    pub money: i32,
+    pub team: Team,
     pub health: i32,
+    pub max_health: i32,
     pub armor: i32,
     pub position: Vec3,
+    #[serde(skip)]
     pub head: Vec3,
     pub name: String,
+    #[serde(skip)]
+    pub model_name: String,
     pub weapon: Weapon,
     pub ammo: (i32, i32),
+    #[serde(skip)]
     pub bones: HashMap<Bones, Vec3>,
+    #[serde(skip)]
+    pub skeleton: Vec<BoneTransform>,
     pub has_defuser: bool,
     pub has_helmet: bool,
     pub has_bomb: bool,
+    #[serde(skip)]
     pub visible: bool,
     pub color: i32,
     pub rotation: f32,
+    #[serde(skip)]
     pub sound: Option<SoundType>,
     pub velocity: Vec3,
     pub fov: i32,
@@ -128,6 +151,12 @@ pub struct PlayerData {
     pub round_kills: i32,
     #[serde(skip)]
     pub chams_segments: Vec<(Vec3, Vec3, bool, f32)>,
+    #[serde(skip)]
+    pub collision_mins: Vec3,
+    #[serde(skip)]
+    pub collision_maxs: Vec3,
+    #[serde(skip)]
+    pub collision_transform: Mat4,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]

@@ -1,20 +1,30 @@
 use std::{path::PathBuf, sync::LazyLock};
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::config::BASE_PATH;
 
 pub static APP_CONFIG_PATH: LazyLock<PathBuf> = LazyLock::new(|| BASE_PATH.join("deadlocked.toml"));
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ApplicationConfig {
     pub first_launch: bool,
+    #[serde(default = "new_uuid")]
+    pub radar_uuid: Uuid,
+}
+
+fn new_uuid() -> Uuid {
+    Uuid::new_v4()
 }
 
 impl Default for ApplicationConfig {
     fn default() -> Self {
-        Self { first_launch: true }
+        Self {
+            first_launch: true,
+            radar_uuid: new_uuid(),
+        }
     }
 }
 

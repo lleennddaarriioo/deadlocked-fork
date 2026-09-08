@@ -5,14 +5,13 @@ use crate::{
     os::process::Process,
 };
 
-#[derive(Debug)]
 pub struct Input {
     previous_state: DynamicBitSet,
     current_state: DynamicBitSet,
 }
 
 impl Input {
-    const MAX_KEY: u64 = 512;
+    const MAX_KEY: usize = 512;
 
     pub fn new() -> Self {
         Self {

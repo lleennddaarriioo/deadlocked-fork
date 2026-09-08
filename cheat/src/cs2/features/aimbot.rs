@@ -1,13 +1,11 @@
 use glam::{Vec2, vec2};
+use shared::WeaponClass;
 
 use shared::bones::Bones;
 
 use crate::{
     config::Config,
-    cs2::{
-        CS2,
-        entity::{player::Player, weapon_class::WeaponClass},
-    },
+    cs2::{CS2, entity::player::Player},
     math::{angles_to_fov, vec2_clamp},
     os::mouse::Mouse,
 };
@@ -186,7 +184,7 @@ impl CS2 {
             WeaponClass::Knife,
         ];
         if disallowed_weapons.contains(&weapon_class) {
-            ::utils::info!("[aimbot miss] disallowed weapon class: {:?}", weapon_class);
+            ::utils::info!("[aimbot miss] disallowed weapon class: {}", weapon_class);
             return false;
         }
 
@@ -212,12 +210,15 @@ impl CS2 {
         let target_angle = {
             let mut smallest_fov = 360.0;
             let mut smallest_angle = glam::Vec2::ZERO;
+            let target_velocity = target.velocity(self);
+            let prediction_time = config.prediction_time.clamp(0.0, 0.25);
             let mut found_bone = false;
 
             let eye_pos = local_player.eye_position(self);
 
             for bone in &config.bones {
-                let bone_pos = target.bone_position(self, bone.u64());
+                let bone_pos =
+                    target.bone_position(self, bone.u64()) + target_velocity * prediction_time;
                 let dist_units = eye_pos.distance(bone_pos);
                 let dist_meters = dist_units * 0.0254;
 
@@ -258,7 +259,6 @@ impl CS2 {
                 if predicted_damage <= 0.0 {
                     continue;
                 }
-
                 let angle =
                     self.angle_to_target(&local_player, &bone_pos, &self.target.previous_aim_punch);
                 let fov = angles_to_fov(&local_player.view_angles(self), &angle);

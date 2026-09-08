@@ -1,29 +1,30 @@
-use serde::Serialize;
-use shared::entity::MolotovInfo;
+use shared::MolotovInfo;
 
-use crate::cs2::{CS2, entity::player::Player};
+use crate::cs2::{CS2, entity::base_entity::BaseEntity};
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Clone, PartialEq)]
 pub struct Molotov {
-    controller: u64,
+    controller: BaseEntity,
 }
 
 impl Molotov {
-    pub fn new(controller: u64) -> Self {
-        Self { controller }
+    pub fn new(controller: usize) -> Self {
+        Self {
+            controller: BaseEntity::new(controller),
+        }
     }
 
     pub fn info(&self, cs2: &CS2) -> MolotovInfo {
         MolotovInfo {
-            entity: self.controller,
-            position: Player::entity(self.controller).position(cs2),
+            entity: *self.controller,
+            position: self.controller.position(cs2),
             is_incendiary: self.is_incendiary(cs2),
         }
     }
 
     pub fn is_incendiary(&self, cs2: &CS2) -> bool {
         cs2.process
-            .read::<u8>(self.controller + cs2.offsets.molotov.is_incendiary)
+            .read::<u8>(*self.controller + cs2.offsets.molotov.is_incendiary)
             != 0
     }
 }

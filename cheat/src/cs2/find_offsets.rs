@@ -1,9 +1,6 @@
 use std::time::Instant;
 
-use crate::{
-    constants::cs2,
-    cs2::{CS2, offsets::Offsets, schema::Schema},
-};
+use crate::{constants::cs2, cs2::{CS2, offsets::Offsets, schema::Schema}};
 
 impl CS2 {
     pub fn find_offsets(&self) -> Option<Offsets> {
@@ -63,7 +60,7 @@ impl CS2 {
         offsets.interface.resource = resource_offset;
 
         offsets.interface.entity = if resource_offset != 0 {
-            self.process.read::<u64>(offsets.interface.resource + 0x50) + 0x10
+            self.process.read::<usize>(offsets.interface.resource + 0x50) + 0x10
         } else {
             0
         };
@@ -100,7 +97,7 @@ impl CS2 {
                 self.process
                     .get_interface_function(offsets.interface.input, 19)
                     + 0x14,
-            ) as u64;
+            ) as usize;
         }
 
         if let Some(view_matrix) = self
@@ -125,14 +122,7 @@ impl CS2 {
             utils::warn!("could not find sdl window offset");
         }
 
-        if let Some(planted_c4) = self.process.scan(
-            "48 8D 35 ? ? ? ? 66 0F EF C0 C6 05 ? ? ? ? 01 48 8D 3D",
-            offsets.library.client,
-        ) {
-            offsets.direct.planted_c4 = self.process.get_relative_address(planted_c4, 0x03, 0x0E);
-        } else {
-            utils::warn!("could not find planted c4 offset");
-        }
+
 
         // xref "lobby_mapveto"
         offsets.direct.global_vars = if let Some(global_vars) = self.process.scan(
@@ -182,7 +172,7 @@ impl CS2 {
             utils::warn!("could not find client library in schema");
         }
 
-        let get_offset = |class_name: &str, field_name: &str| -> u64 {
+        let get_offset = |class_name: &str, field_name: &str| -> usize {
             client
                 .as_ref()
                 .and_then(|c| c.get(class_name, field_name))
@@ -201,15 +191,15 @@ impl CS2 {
         offsets.controller.action_tracking_services =
             get_offset("CCSPlayerController", "m_pActionTrackingServices");
 
-        offsets.pawn.health = get_offset("C_BaseEntity", "m_iHealth");
+        offsets.entity.health = get_offset("C_BaseEntity", "m_iHealth");
+        offsets.entity.team = get_offset("C_BaseEntity", "m_iTeamNum");
+        offsets.entity.life_state = get_offset("C_BaseEntity", "m_lifeState");
+        offsets.entity.game_scene_node = get_offset("C_BaseEntity", "m_pGameSceneNode");
+        offsets.entity.velocity = get_offset("C_BaseEntity", "m_vecVelocity");
         offsets.pawn.armor = get_offset("C_CSPlayerPawn", "m_ArmorValue");
-        offsets.pawn.team = get_offset("C_BaseEntity", "m_iTeamNum");
-        offsets.pawn.life_state = get_offset("C_BaseEntity", "m_lifeState");
         offsets.pawn.fov_multiplier = get_offset("C_BasePlayerPawn", "m_flFOVSensitivityAdjust");
-        offsets.pawn.game_scene_node = get_offset("C_BaseEntity", "m_pGameSceneNode");
         offsets.pawn.eye_offset = get_offset("C_BaseModelEntity", "m_vecViewOffset");
         offsets.pawn.eye_angles = get_offset("C_CSPlayerPawn", "m_angEyeAngles");
-        offsets.pawn.velocity = get_offset("C_BaseEntity", "m_vecAbsVelocity");
         offsets.pawn.flags = get_offset("C_BaseEntity", "m_fFlags");
         offsets.pawn.shots_fired = get_offset("C_CSPlayerPawn", "m_iShotsFired");
         offsets.pawn.view_angles = get_offset("C_BasePlayerPawn", "v_angle");
@@ -327,7 +317,7 @@ impl CS2 {
         offsets.entity_identity.size = client
             .as_ref()
             .and_then(|c| c.get_class("CEntityIdentity"))
-            .map(|c| c.size())
+            .map(|c| c.size() as usize)
             .unwrap_or_else(|| {
                 utils::warn!("missing class CEntityIdentity");
                 0
@@ -337,4 +327,3 @@ impl CS2 {
         Some(offsets)
     }
 }
-

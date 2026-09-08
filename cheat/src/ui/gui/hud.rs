@@ -1,11 +1,13 @@
 use egui::{DragValue, Ui};
 
 use crate::ui::{
-    app::App,
-    gui::helpers::{checkbox, collapsing_open, color_picker, combo_box, drag, keybind, scroll},
+    app::AppState,
+    gui::helpers::{
+        checkbox, collapsing_open, color_picker, combo_box, drag, keybind, scroll, text_settings_button,
+    },
 };
 
-impl App {
+impl AppState {
     pub fn hud_settings(&mut self, ui: &mut Ui) {
         scroll(ui, "hud", |ui| {
             ui.columns(2, |cols| {
@@ -16,16 +18,12 @@ impl App {
             });
 
             collapsing_open(ui, "Colors", |ui| {
-                if color_picker(ui, "Text Color", &mut self.config.hud.text_color) {
-                    self.send_config();
-                }
-
                 if color_picker(
                     ui,
                     "Crosshair Color",
                     &mut self.config.hud.sniper_crosshair.color,
                 ) {
-                    self.send_config();
+                    self.send_config_game();
                 }
 
                 if color_picker(
@@ -43,7 +41,15 @@ impl App {
                     "Enable Grenade Trails",
                     &mut self.config.hud.grenade_trails.enabled,
                 ) {
-                    self.send_config();
+                    self.send_config_game();
+                }
+
+                if checkbox(
+                    ui,
+                    "Inferno Polygon",
+                    &mut self.config.hud.grenade_trails.inferno_poly,
+                ) {
+                    self.send_config_game();
                 }
 
                 if color_picker(
@@ -51,7 +57,7 @@ impl App {
                     "Smoke Trail Color",
                     &mut self.config.hud.grenade_trails.smoke,
                 ) {
-                    self.send_config();
+                    self.send_config_game();
                 }
 
                 if color_picker(
@@ -59,7 +65,7 @@ impl App {
                     "Molotov Trail Color",
                     &mut self.config.hud.grenade_trails.molotov,
                 ) {
-                    self.send_config();
+                    self.send_config_game();
                 }
 
                 if color_picker(
@@ -67,7 +73,7 @@ impl App {
                     "Incendiary Trail Color",
                     &mut self.config.hud.grenade_trails.incendiary,
                 ) {
-                    self.send_config();
+                    self.send_config_game();
                 }
 
                 if color_picker(
@@ -75,7 +81,7 @@ impl App {
                     "Flash Trail Color",
                     &mut self.config.hud.grenade_trails.flash,
                 ) {
-                    self.send_config();
+                    self.send_config_game();
                 }
 
                 if color_picker(
@@ -83,7 +89,7 @@ impl App {
                     "HE Grenade Trail Color",
                     &mut self.config.hud.grenade_trails.he,
                 ) {
-                    self.send_config();
+                    self.send_config_game();
                 }
 
                 if color_picker(
@@ -91,7 +97,7 @@ impl App {
                     "Decoy Trail Color",
                     &mut self.config.hud.grenade_trails.decoy,
                 ) {
-                    self.send_config();
+                    self.send_config_game();
                 }
             });
         });
@@ -106,27 +112,30 @@ impl App {
                     .range(1..=self.max_monitor_hz)
                     .speed(1.0),
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
-            if checkbox(ui, "Bomb Timer", &mut self.config.hud.bomb_timer) {
-                self.send_config();
-            }
+            ui.horizontal(|ui| {
+                if checkbox(ui, "Bomb Timer", &mut self.config.hud.bomb_timer) {
+                    self.send_config_game();
+                }
+                text_settings_button(ui, &mut self.text_popup, "bomb_timer");
+            });
 
             if checkbox(ui, "FOV Circle", &mut self.config.hud.fov_circle) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if checkbox(ui, "Spread Circle", &mut self.config.hud.spread_circle) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if checkbox(ui, "Hit Marker", &mut self.config.hud.hit_marker) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if checkbox(ui, "Dropped Weapons", &mut self.config.hud.dropped_weapons) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if keybind(
@@ -135,11 +144,11 @@ impl App {
                 "Item ESP Hotkey",
                 &mut self.config.hud.item_esp_hotkey,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if checkbox(ui, "Keybind List", &mut self.config.hud.keybind_list) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if checkbox(ui, "Spectator List", &mut self.config.hud.spectator_list) {
@@ -324,9 +333,32 @@ impl App {
             });
         });
 
+        collapsing_open(ui, "Overlays & Lists", |ui| {
+            ui.horizontal(|ui| {
+                if checkbox(ui, "Dropped Weapons", &mut self.config.hud.dropped_weapons) {
+                    self.send_config_game();
+                }
+                text_settings_button(ui, &mut self.text_popup, "weapon_name");
+            });
+
+            ui.horizontal(|ui| {
+                if checkbox(ui, "Keybind List", &mut self.config.hud.keybind_list) {
+                    self.send_config_game();
+                }
+                text_settings_button(ui, &mut self.text_popup, "keybind_list");
+            });
+
+            ui.horizontal(|ui| {
+                if checkbox(ui, "Spectator List", &mut self.config.hud.spectator_list) {
+                    self.send_config_game();
+                }
+                text_settings_button(ui, &mut self.text_popup, "spectator_list");
+            });
+        });
+
         ui.collapsing("Sniper Crosshair", |ui| {
             if checkbox(ui, "Enabled", &mut self.config.hud.sniper_crosshair.enabled) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if drag(
@@ -337,7 +369,7 @@ impl App {
                     .max_decimals(1)
                     .speed(0.2),
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if drag(
@@ -348,7 +380,7 @@ impl App {
                     .max_decimals(1)
                     .speed(0.005),
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if drag(
@@ -359,7 +391,7 @@ impl App {
                     .max_decimals(1)
                     .speed(0.2),
             ) {
-                self.send_config();
+                self.send_config_game();
             }
         });
 
@@ -406,7 +438,7 @@ impl App {
     fn hud_right(&mut self, ui: &mut Ui) {
         collapsing_open(ui, "Appearance", |ui| {
             if checkbox(ui, "Text Outline", &mut self.config.hud.text_outline) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if drag(
@@ -417,39 +449,41 @@ impl App {
                     .speed(0.02)
                     .max_decimals(1),
             ) {
-                self.send_config();
+                self.send_config_game();
+            }
+            if combo_box(ui, "font", "Font", &mut self.config.font) {
+                self.config.font.set(ui.ctx());
+                if let Some(ctx) = &self.overlay_egui {
+                    self.config.font.set(ctx);
+                }
+                self.send_config_game();
             }
 
-            if drag(
-                ui,
-                "Font Size",
-                DragValue::new(&mut self.config.hud.font_size)
-                    .range(1.0..=99.0)
-                    .speed(0.2)
-                    .max_decimals(1),
-            ) {
-                self.send_config();
-            }
+            ui.separator();
 
-            if drag(
-                ui,
-                "Icon Size",
-                DragValue::new(&mut self.config.hud.icon_size)
-                    .range(1.0..=99.0)
-                    .speed(0.2)
-                    .max_decimals(1),
-            ) {
-                self.send_config();
-            }
+            ui.horizontal(|ui| {
+                ui.label("Status Text");
+                text_settings_button(ui, &mut self.text_popup, "status_text");
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Grenade Name");
+                text_settings_button(ui, &mut self.text_popup, "grenade_name");
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Grenade Lineup");
+                text_settings_button(ui, &mut self.text_popup, "grenade_lineup");
+            });
         });
 
         ui.collapsing("Advanced", |ui| {
             if checkbox(ui, "Player Position & Speed", &mut self.config.hud.debug) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if checkbox(ui, "Raycast & Penetration Debug", &mut self.config.hud.raycast_debug) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if drag(
@@ -457,7 +491,7 @@ impl App {
                 "FPS",
                 DragValue::new(&mut self.config.fps).range(1..=self.max_monitor_hz),
             ) {
-                self.send_config();
+                self.send_config_game();
             }
         });
     }

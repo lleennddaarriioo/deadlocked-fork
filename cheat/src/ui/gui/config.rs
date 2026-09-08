@@ -6,14 +6,14 @@ use crate::{
         write_config,
     },
     ui::{
-        app::App,
+        app::AppState,
         color::Colors,
         grenades::read_grenades,
-        gui::helpers::{collapsing_open, scroll},
+        gui::helpers::{collapsing_open, open_url, scroll},
     },
 };
 
-impl App {
+impl AppState {
     pub fn config_settings(&mut self, ui: &mut Ui) {
         ui.columns(2, |cols| {
             let left = &mut cols[0];
@@ -50,15 +50,13 @@ impl App {
         collapsing_open(ui, "Config", |ui| {
             if ui.button("Reset").clicked() {
                 self.config = Config::default();
-                self.send_config();
+                self.send_config_game();
                 utils::info!("loaded default config");
             }
 
             if ui.button("Config Folder").clicked() {
-                std::process::Command::new("xdg-open")
-                    .arg(BASE_PATH.as_os_str())
-                    .status()
-                    .unwrap();
+                let url = format!("file://{}", BASE_PATH.display());
+                open_url(&url);
             }
         });
 
@@ -83,7 +81,7 @@ impl App {
                             self.config.accent_color = color;
                             ui.ctx()
                                 .global_style_mut(|style| style.visuals.selection.bg_fill = color);
-                            self.send_config();
+                            self.send_config_game();
                         }
                     }
                 });
@@ -106,7 +104,7 @@ impl App {
                     clicked_config = Some(config.clone());
                 }
                 ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                    if ui.button("\u{f0a7a}").clicked() {
+                    if ui.button("Delete").clicked() {
                         delete = Some(config.clone());
                     }
                 });
@@ -116,7 +114,7 @@ impl App {
         if let Some(config_path) = clicked_config {
             self.config = parse_config(&config_path);
             self.current_config = config_path;
-            self.send_config();
+            self.send_config_game();
             ui.ctx().global_style_mut(|style| {
                 style.visuals.selection.bg_fill = self.config.accent_color
             });

@@ -1,9 +1,9 @@
 use egui::Color32;
 use serde::{Deserialize, Serialize};
 
-use crate::ui::color::Colors;
+use super::text::OverlayTextConfig;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct HudConfig {
     pub bomb_timer: bool,
@@ -16,10 +16,7 @@ pub struct HudConfig {
     pub spectator_list: bool,
     pub grenade_trails: TrailConfig,
     pub text_outline: bool,
-    pub text_color: Color32,
     pub line_width: f32,
-    pub font_size: f32,
-    pub icon_size: f32,
     pub debug: bool,
     pub raycast_debug: bool,
     pub hit_marker: bool,
@@ -30,6 +27,7 @@ pub struct HudConfig {
     pub grenade_warning: GrenadeWarningConfig,
     pub floating_damage: FloatingDamageConfig,
     pub hitsound: HitsoundConfig,
+    pub overlay_text: OverlayTextConfig,
 }
 
 impl Default for HudConfig {
@@ -45,10 +43,7 @@ impl Default for HudConfig {
             spectator_list: false,
             grenade_trails: TrailConfig::default(),
             text_outline: true,
-            text_color: Colors::TEXT,
             line_width: 2.0,
-            font_size: 16.0,
-            icon_size: 20.0,
             debug: false,
             raycast_debug: false,
             hit_marker: false,
@@ -59,6 +54,7 @@ impl Default for HudConfig {
             grenade_warning: GrenadeWarningConfig::default(),
             floating_damage: FloatingDamageConfig::default(),
             hitsound: HitsoundConfig::default(),
+            overlay_text: OverlayTextConfig::default(),
         }
     }
 }
@@ -87,10 +83,16 @@ impl HitsoundPreset {
             HitsoundPreset::Bubble => "Bubble",
             HitsoundPreset::Neverlose => "Neverlose (NL)",
             HitsoundPreset::Skeet => "Skeet / Gamesense (GS)",
-            HitsoundPreset::Aimware => "Aimware / Mutiny (MS)",
+            HitsoundPreset::Aimware => "Aimware (MS)",
             HitsoundPreset::Primordial => "Primordial",
-            HitsoundPreset::CustomWav => "Custom WAV File",
+            HitsoundPreset::CustomWav => "Custom WAV",
         }
+    }
+}
+
+impl std::fmt::Display for HitsoundPreset {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
     }
 }
 
@@ -158,7 +160,7 @@ impl Default for FloatingDamageConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CrosshairConfig {
     pub enabled: bool,
@@ -180,10 +182,11 @@ impl Default for CrosshairConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TrailConfig {
     pub enabled: bool,
+    pub inferno_poly: bool,
     pub smoke: Color32,
     pub molotov: Color32,
     pub incendiary: Color32,
@@ -196,6 +199,7 @@ impl Default for TrailConfig {
     fn default() -> Self {
         Self {
             enabled: true,
+            inferno_poly: true,
             smoke: Color32::LIGHT_GRAY,
             molotov: Color32::RED,
             incendiary: Color32::ORANGE,

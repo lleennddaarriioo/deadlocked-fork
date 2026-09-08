@@ -5,8 +5,10 @@ use rayon::prelude::*;
 use shared::{
     bones::Bones,
     data::{Data, PlayerData},
-    entity::EntityInfo,
+    entity::{EntityInfo, WeaponInfo},
     weapon::Weapon,
+    weapon_class::WeaponClass,
+    BoneTransform, Team,
 };
 
 use crate::{
@@ -14,7 +16,7 @@ use crate::{
         Config,
         aim::{AimbotConfig, KeyMode, RcsConfig, TriggerbotConfig},
     },
-    constants::cs2::{self, TEAM_CT, TEAM_T},
+    constants::cs2,
     cs2::{
         entity::{
             Entity, grenade_info,
@@ -33,18 +35,17 @@ use crate::{
     parser::{bvh::Bvh, read_map},
 };
 
-pub mod bones;
 pub mod bvh;
+pub mod class;
 pub mod entity;
+pub mod find_offsets;
 mod features;
-mod find_offsets;
 mod input;
 pub mod key_codes;
 mod offsets;
 mod schema;
 mod target;
 
-#[derive(Debug)]
 pub struct CS2 {
     is_valid: bool,
     process: Process,
@@ -204,7 +205,7 @@ impl CS2 {
                 t_bhop_val = t_bhop_start.elapsed().as_secs_f32() * 1000.0;
 
                 let is_move_assist_holding = self.input.is_key_pressed(config.misc.grenade_move_hotkey) && 
-                    local_player.weapon_class(self) == crate::cs2::entity::weapon_class::WeaponClass::Grenade;
+                    local_player.weapon_class(self) == shared::WeaponClass::Grenade;
 
                 if !is_move_assist_holding {
                     let t_counter_strafe_start = Instant::now();
@@ -230,7 +231,7 @@ impl CS2 {
         if self.input.is_key_pressed(config.misc.grenade_move_hotkey) {
             if let Some(local_player) = Player::local_player(self) {
                 let weapon_class = local_player.weapon_class(self);
-                if weapon_class == crate::cs2::entity::weapon_class::WeaponClass::Grenade {
+                if weapon_class == shared::WeaponClass::Grenade {
                     let map_name = self.current_map();
                     let position = local_player.position(self);
                     let player_weapon = local_player.weapon(self);
@@ -389,7 +390,7 @@ impl CS2 {
         data.spectators.clear();
         data.entities.clear();
 
-        let sdl_window = self.process.read::<u64>(self.offsets.direct.sdl_window);
+        let sdl_window: usize = self.process.read(self.offsets.direct.sdl_window);
         if sdl_window == 0 {
             data.window_position = Vec2::ZERO;
             data.window_size = Vec2::ONE;
@@ -407,7 +408,7 @@ impl CS2 {
             return;
         };
         let local_team = local_player.team(self);
-        if local_team != TEAM_T && local_team != TEAM_CT {
+        if !local_team.is_playing() {
             data.weapon = Weapon::default();
             data.in_game = false;
             return;
@@ -435,7 +436,7 @@ impl CS2 {
                 }
 
                 let steam_id = player.steam_id(self);
-                let bones = player.all_bones(self);
+                let (bones, skeleton) = player.skeleton_and_bones_with_visibility(self, &local_player);
                 let visible_bones = if update_bone_vis {
                     let mut map = std::collections::HashMap::new();
                     if let Some(bvh) = &self.bvh {
@@ -446,7 +447,7 @@ impl CS2 {
                     }
                     map
                 } else {
-                    self.cached_bone_vis.get(&steam_id).cloned().unwrap_or_default()
+                    self.cached_bone_vis.get(&(player.pawn.handle as u64)).cloned().unwrap_or_default()
                 };
 
                 let mut chams_segments = Vec::new();
@@ -496,17 +497,22 @@ impl CS2 {
 
                 let is_friendly = !is_ffa && player.team(self) == local_team;
                 let player_data = PlayerData {
-                    pawn: player.pawn,
+                    pawn: player.pawn.handle as u64,
                     steam_id,
+                    money: player.money(self),
+                    team: player.team(self),
                     health: player.health(self),
+                    max_health: player.max_health(self),
                     armor: player.armor(self),
                     position: player.position(self),
                     velocity: player.velocity(self),
                     head: player.bone_position(self, Bones::Head.u64()),
                     name: player.name(self),
+                    model_name: player.model_name(self),
                     weapon: player.weapon(self),
                     ammo: (player.clip_ammo(self), player.reserve_ammo(self)),
                     bones,
+                    skeleton,
                     has_defuser: player.has_defuser(self),
                     has_helmet: player.has_helmet(self),
                     has_bomb: player.has_bomb(self),
@@ -521,6 +527,9 @@ impl CS2 {
                     inaccuracy: player.inaccuracy(self),
                     round_kills: player.round_kills(self).unwrap_or(0),
                     chams_segments,
+                    collision_mins: player.collision_bounds(self).0,
+                    collision_maxs: player.collision_bounds(self).1,
+                    collision_transform: player.collision_transform(self),
                 };
 
                 Some((is_friendly, player_data))
@@ -554,30 +563,36 @@ impl CS2 {
         data.total_damage = active_player.round_damage(self).unwrap_or(0.0) as u32;
         data.aim_punch = active_player.aim_punch(self);
 
-        let bones = active_player.all_bones(self);
+        let (local_bones, local_skeleton) =
+            active_player.skeleton_and_bones_with_visibility(self, active_player);
         let mut visible_bones = std::collections::HashMap::new();
         if let Some(bvh) = &self.bvh {
             let eye_pos = active_player.eye_position(self);
-            for (bone, pos) in &bones {
+            for (bone, pos) in &local_bones {
                 visible_bones.insert(*bone, bvh.has_line_of_sight(eye_pos, *pos));
             }
         }
 
         data.local_player = PlayerData {
-            pawn: active_player.pawn,
+            pawn: active_player.pawn.handle as u64,
             steam_id: active_player.steam_id(self),
+            money: active_player.money(self),
+            team: active_player.team(self),
             health: active_player.health(self),
+            max_health: active_player.max_health(self),
             armor: active_player.armor(self),
             position: active_player.position(self),
             velocity: active_player.velocity(self),
             head: active_player.bone_position(self, Bones::Head.u64()),
             name: active_player.name(self),
+            model_name: active_player.model_name(self),
             weapon: active_player.weapon(self),
             ammo: (
                 active_player.clip_ammo(self),
                 active_player.reserve_ammo(self),
             ),
-            bones,
+            bones: local_bones,
+            skeleton: local_skeleton,
             has_defuser: active_player.has_defuser(self),
             has_helmet: active_player.has_helmet(self),
             has_bomb: active_player.has_bomb(self),
@@ -592,19 +607,22 @@ impl CS2 {
             inaccuracy: active_player.inaccuracy(self),
             round_kills: active_player.round_kills(self).unwrap_or(0),
             chams_segments: Vec::new(),
+            collision_mins: active_player.collision_bounds(self).0,
+            collision_maxs: active_player.collision_bounds(self).1,
+            collision_transform: active_player.collision_transform(self),
         };
 
         data.entities.clear();
         for entity in &self.entities {
             data.entities.push(match entity {
-                Entity::Weapon { weapon, entity } => EntityInfo::Weapon {
+                Entity::Weapon { weapon, entity } => EntityInfo::Weapon(WeaponInfo {
                     weapon: weapon.clone(),
-                    position: Player::entity(*entity).position(self),
+                    position: Player::entity(**entity).position(self),
                     ammo: (
-                        weapon_clip_ammo(*entity, self),
-                        weapon_reserve_ammo(*entity, self),
+                        weapon_clip_ammo(**entity, self),
+                        weapon_reserve_ammo(**entity, self),
                     ),
-                },
+                }),
                 Entity::Inferno(inferno) => EntityInfo::Inferno(inferno.info(self)),
                 Entity::Smoke(smoke) => EntityInfo::Smoke(smoke.info(self)),
                 Entity::Molotov(molotov) => EntityInfo::Molotov(molotov.info(self)),
@@ -615,6 +633,7 @@ impl CS2 {
                     EntityInfo::HeGrenade(grenade_info(*entity, "HE Grenade", self))
                 }
                 Entity::Decoy(entity) => EntityInfo::Decoy(grenade_info(*entity, "Decoy", self)),
+                Entity::Chicken(chicken) => EntityInfo::Chicken(chicken.info(self)),
             });
         }
 
@@ -899,7 +918,7 @@ impl CS2 {
 
         // Process dead players to catch the final fatal kill-shot
         for player in &self.dead_players {
-            let pawn_id = player.pawn;
+            let pawn_id = player.pawn.handle as u64;
             if pawn_id == 0 {
                 continue;
             }
@@ -1028,7 +1047,7 @@ impl CS2 {
         angles
     }
 
-    fn entity_has_owner(&self, entity: u64) -> bool {
+    fn entity_has_owner(&self, entity: usize) -> bool {
         self.process
             .read::<i32>(entity + self.offsets.controller.owner_entity)
             != -1
@@ -1044,12 +1063,12 @@ impl CS2 {
     }
 
     fn current_time(&self) -> f32 {
-        let global_vars: u64 = self.process.read(self.offsets.direct.global_vars);
+        let global_vars: usize = self.process.read(self.offsets.direct.global_vars);
         self.process.read(global_vars + 0x30)
     }
 
     fn current_map(&self) -> String {
-        let global_vars: u64 = self.process.read(self.offsets.direct.global_vars);
+        let global_vars: usize = self.process.read(self.offsets.direct.global_vars);
         self.process
             .read_string(self.process.read(global_vars + 0x198))
     }

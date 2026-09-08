@@ -10,13 +10,13 @@ use std::{
 use glam::{IVec2, Vec2};
 use nix::{ioctl_none, ioctl_write_int, ioctl_write_ptr, libc::c_ulong};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 struct Timeval {
     seconds: u64,
     microseconds: u64,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 struct InputEvent {
     time: Timeval,
     event_type: u16,

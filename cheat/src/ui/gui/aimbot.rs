@@ -1,9 +1,9 @@
 use egui::{DragValue, Ui};
-use shared::bones::Bones;
+use shared::Bones;
 use strum::IntoEnumIterator as _;
 
 use crate::ui::{
-    app::App,
+    app::AppState,
     drag_range::DragRange,
     gui::helpers::{checkbox, checkbox_hover, collapsing_open, combo_box, drag, keybind, scroll},
 };
@@ -15,7 +15,7 @@ pub enum AimbotTab {
     Weapon,
 }
 
-impl App {
+impl AppState {
     pub fn aimbot_settings(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
             ui.selectable_value(&mut self.aimbot_tab, AimbotTab::Global, "Global");
@@ -42,7 +42,7 @@ impl App {
                 "Hotkey",
                 &mut self.config.aim.aimbot_hotkey,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if self.aimbot_tab == AimbotTab::Weapon
@@ -53,7 +53,7 @@ impl App {
                     &mut self.weapon_config().aimbot.enable_override,
                 )
             {
-                self.send_config();
+                self.send_config_game();
             }
 
             if checkbox(
@@ -61,7 +61,7 @@ impl App {
                 "Enable Aimbot",
                 &mut self.weapon_config().aimbot.enabled,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if combo_box(
@@ -70,7 +70,7 @@ impl App {
                 "Mode",
                 &mut self.weapon_config().aimbot.mode,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
         });
 
@@ -80,7 +80,7 @@ impl App {
                 "Target Friendlies",
                 &mut self.weapon_config().aimbot.target_friendlies,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if checkbox_hover(
@@ -89,7 +89,7 @@ impl App {
                 "Adjusts FOV based on target distance",
                 &mut self.weapon_config().aimbot.distance_adjusted_fov,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if drag(
@@ -101,7 +101,7 @@ impl App {
                     .speed(0.02)
                     .max_decimals(1),
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if drag(
@@ -112,7 +112,7 @@ impl App {
                     .speed(0.02)
                     .max_decimals(1),
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if checkbox_hover(
@@ -132,7 +132,19 @@ impl App {
                     .speed(0.005)
                     .max_decimals(2),
             ) {
-                self.send_config();
+                self.send_config_game();
+            }
+
+            if drag(
+                ui,
+                "Prediction",
+                DragValue::new(&mut self.weapon_config().aimbot.prediction_time)
+                    .range(0.0..=0.25)
+                    .suffix(" s")
+                    .speed(0.002)
+                    .max_decimals(2),
+            ) {
+                self.send_config_game();
             }
 
             if drag(
@@ -142,7 +154,7 @@ impl App {
                     .range(0..=10)
                     .speed(0.05),
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if combo_box(
@@ -151,7 +163,7 @@ impl App {
                 "Targeting Mode",
                 &mut self.weapon_config().aimbot.targeting_mode,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if combo_box(
@@ -170,7 +182,7 @@ impl App {
                 "Visibility Check",
                 &mut self.weapon_config().aimbot.visibility_check,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if combo_box(
@@ -198,7 +210,7 @@ impl App {
                 "Flash Check",
                 &mut self.weapon_config().aimbot.flash_check,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
         });
 
@@ -223,7 +235,7 @@ impl App {
                     } else {
                         self.weapon_config().aimbot.bones.push(bone);
                     }
-                    self.send_config();
+                    self.send_config_game();
                 }
             }
 
@@ -243,7 +255,7 @@ impl App {
                     &mut self.weapon_config().triggerbot.enable_override,
                 )
             {
-                self.send_config();
+                self.send_config_game();
             }
 
             if checkbox(
@@ -251,7 +263,7 @@ impl App {
                 "Enable Triggerbot",
                 &mut self.weapon_config().triggerbot.enabled,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if keybind(
@@ -260,7 +272,7 @@ impl App {
                 "Hotkey 1",
                 &mut self.config.aim.triggerbot_hotkey,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if keybind(
@@ -288,7 +300,7 @@ impl App {
                 ))
                 .changed()
             {
-                self.send_config();
+                self.send_config_game();
             }
 
             if combo_box(
@@ -297,7 +309,7 @@ impl App {
                 "Mode",
                 &mut self.weapon_config().triggerbot.mode,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if checkbox(
@@ -305,7 +317,7 @@ impl App {
                 "Head Only",
                 &mut self.weapon_config().triggerbot.head_only,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if drag(
@@ -325,7 +337,7 @@ impl App {
                     .range(0..=2000)
                     .speed(10.0),
             ) {
-                self.send_config();
+                self.send_config_game();
             }
         });
 
@@ -383,7 +395,7 @@ impl App {
                 "Flash Check",
                 &mut self.weapon_config().triggerbot.flash_check,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if checkbox(
@@ -391,7 +403,7 @@ impl App {
                 "Scope Check",
                 &mut self.weapon_config().triggerbot.scope_check,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if checkbox_hover(
@@ -400,7 +412,7 @@ impl App {
                 "Only shoot if the player moves slower than the specified threshold",
                 &mut self.weapon_config().triggerbot.velocity_check,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if drag(
@@ -409,7 +421,7 @@ impl App {
                 DragValue::new(&mut self.weapon_config().triggerbot.velocity_threshold)
                     .range(0..=5000),
             ) {
-                self.send_config();
+                self.send_config_game();
             }
         });
 
@@ -421,11 +433,11 @@ impl App {
                     &mut self.weapon_config().rcs.enable_override,
                 )
             {
-                self.send_config();
+                self.send_config_game();
             }
 
             if checkbox(ui, "Enable RCS", &mut self.weapon_config().rcs.enabled) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if ui
@@ -448,7 +460,7 @@ impl App {
                 })
                 .inner
             {
-                self.send_config();
+                self.send_config_game();
             }
         });
     }

@@ -1,18 +1,14 @@
 use glam::Vec2;
-use shared::bones::Bones;
+use shared::{Bones, WeaponClass};
 use strum::IntoEnumIterator;
 
 use crate::{
     config::{Config, aim::TargetingMode},
-    constants::cs2,
-    cs2::{
-        CS2,
-        entity::{player::Player, weapon_class::WeaponClass},
-    },
+    cs2::{CS2, entity::player::Player},
     math::angles_to_fov,
 };
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Target {
     pub player: Option<Player>,
     pub angle: Vec2,
@@ -35,7 +31,7 @@ impl CS2 {
         };
 
         let team = local_player.team(self);
-        if team != cs2::TEAM_CT && team != cs2::TEAM_T {
+        if !team.is_playing() {
             self.target.reset();
             return;
         }

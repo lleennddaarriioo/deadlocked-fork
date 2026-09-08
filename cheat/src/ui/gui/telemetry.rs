@@ -2,10 +2,10 @@ use egui::{Color32, DragValue, Pos2, Stroke, Ui, Vec2};
 use std::time::{Duration, Instant};
 
 use crate::game::TELEMETRY;
-use crate::ui::app::App;
+use crate::ui::app::AppState;
 use crate::ui::gui::helpers::scroll;
 
-impl App {
+impl AppState {
     pub fn telemetry_settings(&mut self, ui: &mut Ui) {
         scroll(ui, "telemetry_tab_scroll", |ui| {
             ui.heading("Performance & Thread Telemetry");

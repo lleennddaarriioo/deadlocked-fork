@@ -1,13 +1,14 @@
 use egui::{DragValue, Ui};
 
 use crate::ui::{
-    app::App,
+    app::AppState,
     gui::helpers::{
         checkbox, checkbox_hover, collapsing_open, color_picker, combo_box, drag, keybind, scroll,
+        text_settings_button,
     },
 };
 
-impl App {
+impl AppState {
     pub fn player_settings(&mut self, ui: &mut Ui) {
         scroll(ui, "player", |ui| {
             ui.columns(2, |cols| {
@@ -23,7 +24,7 @@ impl App {
                     "Box (visible)",
                     &mut self.config.player.box_visible_color,
                 ) {
-                    self.send_config();
+                    self.send_config_game();
                 }
 
                 if color_picker(
@@ -31,11 +32,31 @@ impl App {
                     "Box (invisible)",
                     &mut self.config.player.box_invisible_color,
                 ) {
-                    self.send_config();
+                    self.send_config_game();
                 }
 
                 if color_picker(ui, "Skeleton", &mut self.config.player.skeleton_color) {
-                    self.send_config();
+                    self.send_config_game();
+                }
+
+                if color_picker(
+                    ui,
+                    "Model (visible)",
+                    &mut self.config.player.model_visible_color,
+                ) {
+                    self.send_config_game();
+                }
+
+                if color_picker(
+                    ui,
+                    "Model (invisible)",
+                    &mut self.config.player.model_invisible_color,
+                ) {
+                    self.send_config_game();
+                }
+
+                if color_picker(ui, "Tracers", &mut self.config.player.snapline_color) {
+                    self.send_config_game();
                 }
             });
         });
@@ -43,8 +64,12 @@ impl App {
 
     fn player_left(&mut self, ui: &mut Ui) {
         collapsing_open(ui, "Players", |ui| {
-            if checkbox(ui, "Enable", &mut self.config.player.enabled) {
-                self.send_config();
+            if checkbox(ui, "Player", &mut self.config.player.enabled) {
+                self.send_config_game();
+            }
+
+            if checkbox(ui, "Chicken", &mut self.config.player.chicken) {
+                self.send_config_game();
             }
 
             if keybind(
@@ -53,7 +78,7 @@ impl App {
                 "ESP Hotkey",
                 &mut self.config.player.esp_hotkey,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if checkbox(
@@ -61,15 +86,15 @@ impl App {
                 "Show Friendlies",
                 &mut self.config.player.show_friendlies,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if combo_box(ui, "draw_box", "Box", &mut self.config.player.draw_box) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if combo_box(ui, "box_mode", "Box Mode", &mut self.config.player.box_mode) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if combo_box(
@@ -78,7 +103,25 @@ impl App {
                 "Skeleton",
                 &mut self.config.player.draw_skeleton,
             ) {
-                self.send_config();
+                self.send_config_game();
+            }
+
+            if combo_box(
+                ui,
+                "draw_model",
+                "Model",
+                &mut self.config.player.draw_model,
+            ) {
+                self.send_config_game();
+            }
+
+            if combo_box(
+                ui,
+                "model_mode",
+                "Model style",
+                &mut self.config.player.model_mode,
+            ) {
+                self.send_config_game();
             }
 
             if checkbox(ui, "Draw Chams", &mut self.config.player.draw_chams) {
@@ -86,16 +129,36 @@ impl App {
             }
 
             if checkbox(ui, "Head Circle", &mut self.config.player.head_circle) {
-                self.send_config();
+                self.send_config_game();
             }
 
-            if checkbox_hover(
+            if combo_box(
                 ui,
-                "Visible Only",
-                "Only show visible players",
-                &mut self.config.player.visible_only,
+                "visibility",
+                "Visibility",
+                &mut self.config.player.visibility,
             ) {
-                self.send_config();
+                self.send_config_game();
+            }
+        });
+
+        ui.collapsing("Snaplines", |ui| {
+            if combo_box(
+                ui,
+                "snapline_mode",
+                "Mode",
+                &mut self.config.player.snaplines,
+            ) {
+                self.send_config_game();
+            }
+
+            if combo_box(
+                ui,
+                "snapline_anchor",
+                "Anchor",
+                &mut self.config.player.snapline_anchor,
+            ) {
+                self.send_config_game();
             }
         });
 
@@ -163,41 +226,55 @@ impl App {
                 .checkbox(&mut self.config.player.health_bar, "Health Bar")
                 .changed()
             {
-                self.send_config();
+                self.send_config_game();
             }
 
             if ui
                 .checkbox(&mut self.config.player.armor_bar, "Armor Bar")
                 .changed()
             {
-                self.send_config();
+                self.send_config_game();
             }
 
-            if ui
-                .checkbox(&mut self.config.player.player_name, "Player Name")
-                .changed()
-            {
-                self.send_config();
-            }
+            ui.horizontal(|ui| {
+                if ui
+                    .checkbox(&mut self.config.player.player_name, "Player Name")
+                    .changed()
+                {
+                    self.send_config_game();
+                }
+                text_settings_button(ui, &mut self.text_popup, "player_name");
+            });
 
-            if ui
-                .checkbox(&mut self.config.player.weapon_icon, "Weapon Icon")
-                .changed()
-            {
-                self.send_config();
-            }
+            ui.horizontal(|ui| {
+                if ui
+                    .checkbox(&mut self.config.player.weapon_icon, "Weapon Icon")
+                    .changed()
+                {
+                    self.send_config_game();
+                }
+                text_settings_button(ui, &mut self.text_popup, "weapon_icon");
+            });
 
-            if ui
-                .checkbox(&mut self.config.player.tags, "Show Tags")
-                .changed()
-            {
-                self.send_config();
-            }
+            ui.horizontal(|ui| {
+                ui.label("Ammo");
+                text_settings_button(ui, &mut self.text_popup, "ammo_text");
+            });
+
+            ui.horizontal(|ui| {
+                if ui
+                    .checkbox(&mut self.config.player.tags, "Show Tags")
+                    .changed()
+                {
+                    self.send_config_game();
+                }
+                text_settings_button(ui, &mut self.text_popup, "player_tags");
+            });
 
             ui.horizontal(|ui| {
                 ui.label("Target Name:");
                 if ui.text_edit_singleline(&mut self.config.player.target_player_name).changed() {
-                    self.send_config();
+                    self.send_config_game();
                 }
             });
         });
@@ -209,7 +286,7 @@ impl App {
                 "Show a circle under players when they make sound",
                 &mut self.config.player.sound.enabled,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if drag(
@@ -219,7 +296,7 @@ impl App {
                     .range(0.0..=10.0)
                     .speed(0.01),
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             if checkbox(
@@ -227,7 +304,7 @@ impl App {
                 "Show Visible",
                 &mut self.config.player.sound.show_visible,
             ) {
-                self.send_config();
+                self.send_config_game();
             }
 
             ui.collapsing("Ranges", |ui| {
@@ -243,10 +320,10 @@ impl App {
                     if ui.button("↺").on_hover_text("Reset").clicked() {
                         self.config.player.sound.footstep_diameter =
                             crate::constants::cs2::SOUND_ESP_FOOTSTEP_DIAMETER_DEFAULT;
-                        self.send_config();
+                        self.send_config_game();
                     }
                     if response.changed() {
-                        self.send_config();
+                        self.send_config_game();
                     }
                 });
 
@@ -262,10 +339,10 @@ impl App {
                     if ui.button("↺").on_hover_text("Reset").clicked() {
                         self.config.player.sound.gunshot_diameter =
                             crate::constants::cs2::SOUND_ESP_GUNSHOT_DIAMETER_DEFAULT;
-                        self.send_config();
+                        self.send_config_game();
                     }
                     if response.changed() {
-                        self.send_config();
+                        self.send_config_game();
                     }
                 });
 
@@ -281,10 +358,10 @@ impl App {
                     if ui.button("↺").on_hover_text("Reset").clicked() {
                         self.config.player.sound.weapon_diameter =
                             crate::constants::cs2::SOUND_ESP_WEAPON_DIAMETER_DEFAULT;
-                        self.send_config();
+                        self.send_config_game();
                     }
                     if response.changed() {
-                        self.send_config();
+                        self.send_config_game();
                     }
                 });
             });

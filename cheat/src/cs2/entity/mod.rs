@@ -1,39 +1,40 @@
-use shared::{entity::GrenadeInfo, weapon::Weapon};
+use shared::{GrenadeInfo, Weapon};
 
 use crate::{
     constants::cs2::class,
     cs2::{
         CS2,
         entity::{
-            inferno::Inferno, molotov::Molotov, planted_c4::PlantedC4, player::Player,
-            smoke::Smoke, weapon::weapon_from_entity,
+            base_entity::BaseEntity, chicken::Chicken, inferno::Inferno, molotov::Molotov,
+            planted_c4::PlantedC4, player::Player, smoke::Smoke, weapon::weapon_from_entity,
         },
     },
 };
 
+pub mod base_entity;
+pub mod chicken;
 pub mod inferno;
 pub mod molotov;
 pub mod planted_c4;
 pub mod player;
 pub mod smoke;
 pub mod weapon;
-pub mod weapon_class;
 
-#[derive(Debug, Clone)]
 pub enum Entity {
-    Weapon { weapon: Weapon, entity: u64 },
+    Weapon { weapon: Weapon, entity: BaseEntity },
     Inferno(Inferno),
     Smoke(Smoke),
     Molotov(Molotov),
-    Flashbang(u64),
-    HeGrenade(u64),
-    Decoy(u64),
+    Flashbang(BaseEntity),
+    HeGrenade(BaseEntity),
+    Decoy(BaseEntity),
+    Chicken(Chicken),
 }
 
-pub fn grenade_info(entity: u64, name: &'static str, cs2: &CS2) -> GrenadeInfo {
+pub fn grenade_info(entity: BaseEntity, name: &'static str, cs2: &CS2) -> GrenadeInfo {
     GrenadeInfo {
-        entity,
-        position: Player::entity(entity).position(cs2),
+        entity: *entity,
+        position: entity.position(cs2),
         name: name.to_owned(),
     }
 }
@@ -91,7 +92,7 @@ impl CS2 {
     fn get_entities_in_bucket(
         &self,
         bucket_index: u64,
-        bucket_ptr: u64,
+        bucket_ptr: usize,
         local_player: &Player,
     ) -> BucketResult {
         let mut result = BucketResult {
@@ -108,15 +109,16 @@ impl CS2 {
         const IDENTITIES_PER_BUCKET: usize = 512;
         let bucket = self.process.read_vec(
             bucket_ptr,
-            IDENTITIES_PER_BUCKET * self.offsets.entity_identity.size as usize,
+            IDENTITIES_PER_BUCKET * self.offsets.entity_identity.size,
         );
         for index_in_bucket in 0..IDENTITIES_PER_BUCKET {
-            let identity_offset = index_in_bucket * self.offsets.entity_identity.size as usize;
+            let identity_offset = index_in_bucket * self.offsets.entity_identity.size;
             if identity_offset + 24 > bucket.len() {
                 continue;
             }
 
-            let entity: u64 = *bytemuck::from_bytes(&bucket[identity_offset..identity_offset + 8]);
+            let entity: usize =
+                *bytemuck::from_bytes(&bucket[identity_offset..identity_offset + 8]);
             if entity == 0 {
                 continue;
             }
@@ -124,15 +126,14 @@ impl CS2 {
             let handle_start = identity_offset + 0x10;
             let handle: u32 = *bytemuck::from_bytes(&bucket[handle_start..handle_start + 4]);
             let handle_index = handle & 0x7FFF;
-            let entity_index =
-                (bucket_index as usize * IDENTITIES_PER_BUCKET + index_in_bucket) as u32;
+            let entity_index = (bucket_index as usize * IDENTITIES_PER_BUCKET + index_in_bucket) as u32;
             if entity_index != handle_index {
                 continue;
             }
 
-            let vtable: u64 = self.process.read(entity);
-            let rtti: u64 = self.process.read(vtable - 0x8);
-            let name_ptr: u64 = self.process.read(rtti + 0x8);
+            let vtable: usize = self.process.read(entity);
+            let rtti: usize = self.process.read(vtable - 0x8);
+            let name_ptr: usize = self.process.read(rtti + 0x8);
             let name = self.process.read_string(name_ptr);
 
             match name.as_str() {
@@ -165,11 +166,12 @@ impl CS2 {
                     result.entities.push(Entity::Smoke(Smoke::new(entity)));
                 }
                 class::MOLOTOV => result.entities.push(Entity::Molotov(Molotov::new(entity))),
-                class::FLASHBANG => result.entities.push(Entity::Flashbang(entity)),
-                class::HE_GRENADE => result.entities.push(Entity::HeGrenade(entity)),
-                class::DECOY => result.entities.push(Entity::Decoy(entity)),
+                class::FLASHBANG => result.entities.push(Entity::Flashbang(BaseEntity::new(entity))),
+                class::HE_GRENADE => result.entities.push(Entity::HeGrenade(BaseEntity::new(entity))),
+                class::DECOY => result.entities.push(Entity::Decoy(BaseEntity::new(entity))),
+                class::CHICKEN => result.entities.push(Entity::Chicken(Chicken::new(entity))),
                 _ => {
-                    let entity_identity: u64 = self.process.read(entity + 0x10);
+                    let entity_identity: usize = self.process.read(entity + 0x10);
                     if entity_identity == 0 {
                         continue;
                     }
@@ -187,11 +189,14 @@ impl CS2 {
                         }
 
                         let weapon = weapon_from_entity(entity, self);
-                        if weapon == Weapon::Unknown {
+                        if weapon == Weapon::None {
                             continue;
                         }
 
-                        result.entities.push(Entity::Weapon { weapon, entity });
+                        result.entities.push(Entity::Weapon {
+                            weapon,
+                            entity: BaseEntity::new(entity),
+                        });
                     }
                 }
             }

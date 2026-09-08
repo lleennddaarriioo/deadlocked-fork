@@ -2,14 +2,14 @@ use std::{collections::HashMap, fs::read_to_string};
 
 use glam::{Vec2, Vec3};
 use serde::{Deserialize, Serialize};
-use shared::weapon::Weapon;
+use shared::Weapon;
 use uuid::Uuid;
 
 use crate::{config::BASE_PATH, constants::GRENADE_FILE_NAME};
 
 pub type GrenadeList = HashMap<String, Vec<Grenade>>;
 
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone)]
 pub struct Grenade {
     pub id: Uuid,
     pub name: String,
@@ -31,7 +31,7 @@ impl Grenade {
     }
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone)]
 pub struct GrenadeModifiers {
     pub jump: bool,
     pub duck: bool,

@@ -1,47 +1,45 @@
-use std::time::Instant;
+use std::{collections::HashMap, time::Instant};
 
-use egui::{Align2, Color32, Painter, Pos2, Stroke};
-use shared::{
-    data::Data,
-    entity::{EntityInfo, GrenadeInfo, InfernoInfo, MolotovInfo},
-};
+use egui::{Color32, Painter, Pos2, Stroke, vec2};
+use shared::{ChickenBones, ChickenInfo, Data, EntityInfo, GrenadeInfo, InfernoInfo, MolotovInfo};
 
 use crate::{
+    config::player::DrawMode,
     math::world_to_screen,
-    ui::{app::App, overlay::convex_hull, trail::Trail},
+    ui::{app::AppState, overlay::convex_hull, trail::Trail},
 };
 
-impl App {
+impl AppState {
     pub fn draw_entity(&self, painter: &Painter, entity: &EntityInfo, data: &Data) {
         match entity {
-            EntityInfo::Weapon {
-                weapon,
-                position,
-                ammo,
-            } => {
+            EntityInfo::Weapon(info) => {
                 if !self.config.hud.dropped_weapons
                     || !data.item_esp_active
-                    || weapon == &shared::weapon::Weapon::Unknown
+                    || info.weapon == shared::weapon::Weapon::None
                 {
                     return;
                 }
-                let Some(position) = world_to_screen(position, data) else {
+                let Some(screen) = world_to_screen(&info.position, data) else {
                     return;
                 };
-                self.text(
+                let cat = &self.config.hud.overlay_text.weapon_name;
+                let anchor = super::hud::point_anchor(screen, cat.position, cat.font_size * 0.3);
+                self.text_sized(
                     painter,
-                    format!("{weapon}"),
-                    position,
-                    Align2::CENTER_CENTER,
-                    None,
+                    format!("{}", info.weapon),
+                    anchor,
+                    cat.align.to_align2(),
+                    cat.color,
+                    cat.font_size,
                 );
-                if ammo.0 >= 0 && ammo.0 <= 250 && ammo.1 >= 0 && ammo.1 <= 1000 {
-                    self.text(
+                if info.ammo.0 >= 0 && info.ammo.0 <= 250 && info.ammo.1 >= 0 && info.ammo.1 <= 1000 {
+                    self.text_sized(
                         painter,
-                        format!("{}/{}", ammo.0, ammo.1),
-                        egui::pos2(position.x, position.y + self.config.hud.font_size),
-                        Align2::CENTER_CENTER,
-                        None,
+                        format!("{}/{}", info.ammo.0, info.ammo.1),
+                        anchor + vec2(0.0, cat.font_size),
+                        cat.align.to_align2(),
+                        cat.color,
+                        cat.font_size * 0.8,
                     );
                 }
             }
@@ -59,6 +57,7 @@ impl App {
             EntityInfo::Decoy(info) => {
                 self.draw_grenade(painter, data, info, self.config.hud.grenade_trails.decoy)
             }
+            EntityInfo::Chicken(info) => self.draw_chicken(painter, data, info),
         };
     }
 
@@ -72,10 +71,19 @@ impl App {
         if !self.config.hud.grenade_trails.enabled {
             return;
         }
-        let Some(position) = world_to_screen(&info.position, data) else {
+        let Some(screen) = world_to_screen(&info.position, data) else {
             return;
         };
-        self.text(painter, &info.name, position, Align2::CENTER_CENTER, None);
+        let cat = &self.config.hud.overlay_text.grenade_name;
+        let anchor = super::hud::point_anchor(screen, cat.position, cat.font_size * 0.3);
+        self.text_sized(
+            painter,
+            &info.name,
+            anchor,
+            cat.align.to_align2(),
+            cat.color,
+            cat.font_size,
+        );
 
         if !self.config.hud.grenade_trails.enabled {
             return;
@@ -103,9 +111,10 @@ impl App {
     fn inferno(&self, painter: &Painter, data: &Data, inferno: &InfernoInfo) {
         use egui::Shape;
 
-        if !self.config.hud.grenade_trails.enabled {
+        if !self.config.hud.grenade_trails.enabled || !self.config.hud.grenade_trails.inferno_poly {
             return;
         }
+
         let hull: Vec<Pos2> = convex_hull(&inferno.hull)
             .iter()
             .filter_map(|p| {
@@ -182,5 +191,54 @@ impl App {
         let now = Instant::now();
         self.trails
             .retain(|_k, trail| now.duration_since(trail.last_update) < Trail::MAX_AGE);
+    }
+
+    fn draw_chicken(&self, painter: &Painter, data: &Data, chicken: &ChickenInfo) {
+        if !self.config.player.chicken {
+            return;
+        }
+
+        let screen_bones: HashMap<ChickenBones, Pos2> = chicken
+            .bones
+            .iter()
+            .filter_map(|(bone, pos)| world_to_screen(pos, data).map(|s| (*bone, s)))
+            .collect();
+
+        if screen_bones.is_empty() {
+            return;
+        }
+
+        // box
+        if self.config.player.draw_box != DrawMode::None {
+            let Some((tl, tr, bl, br)) = Self::calculate_box_corners(&screen_bones) else {
+                return;
+            };
+
+            let box_color = if chicken.visible {
+                self.config.player.box_visible_color
+            } else {
+                self.config.player.box_invisible_color
+            };
+            let stroke = Stroke::new(self.config.hud.line_width, box_color);
+            self.draw_gap_box(painter, tl, tr, bl, br, stroke);
+        }
+
+        // skeleton
+        let color = match &self.config.player.draw_skeleton {
+            DrawMode::None => return,
+            DrawMode::Health => self.health_color(100, 100, self.config.player.skeleton_color.a()),
+            DrawMode::Color => self.config.player.skeleton_color,
+        };
+
+        let stroke = Stroke::new(self.config.hud.line_width, color);
+        for (bone_a, bone_b) in &ChickenBones::CONNECTIONS {
+            let (Some(a_screen), Some(b_screen)) =
+                (screen_bones.get(bone_a), screen_bones.get(bone_b))
+            else {
+                continue;
+            };
+
+            painter.line_segment([*a_screen, *b_screen], stroke);
+        }
     }
 }

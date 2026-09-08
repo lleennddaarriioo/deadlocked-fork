@@ -7,7 +7,10 @@ use egui::Color32;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    config::{aim::AimConfig, hud::HudConfig, player::PlayerConfig, r#unsafe::UnsafeConfig},
+    config::{
+        aim::AimConfig, hud::HudConfig, player::PlayerConfig, radar::RadarConfig,
+        r#unsafe::UnsafeConfig,
+    },
     font::Font,
     ui::color::Colors,
 };
@@ -16,15 +19,18 @@ pub mod aim;
 pub mod application;
 pub mod hud;
 pub mod player;
+pub mod radar;
+pub mod text;
 pub mod r#unsafe;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub aim: AimConfig,
     pub player: PlayerConfig,
     pub hud: HudConfig,
     pub misc: UnsafeConfig,
+    pub radar: RadarConfig,
     pub accent_color: Color32,
     pub fps: u32,
     pub cache_hz: u32,
@@ -45,6 +51,7 @@ impl Default for Config {
             player: PlayerConfig::default(),
             hud: HudConfig::default(),
             misc: UnsafeConfig::default(),
+            radar: RadarConfig::default(),
             accent_color: Colors::BLUE,
             fps: 120,
             cache_hz: 120,

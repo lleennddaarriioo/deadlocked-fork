@@ -1,5 +1,5 @@
 pub mod cs2 {
-    use shared::weapon::Weapon;
+    use shared::Weapon;
 
     pub const PROCESS_NAME: &str = "cs2";
     pub const CLIENT_LIB: &str = "libclient.so";
@@ -8,16 +8,15 @@ pub mod cs2 {
     pub const INPUT_LIB: &str = "libinputsystem.so";
     pub const SDL_LIB: &str = "libSDL3.so.0";
     pub const SCHEMA_LIB: &str = "libschemasystem.so";
+    pub const PHYSICS_LIB: &str = "libvphysics2.so";
 
     pub const LIBS: [&str; 6] = [
         CLIENT_LIB, ENGINE_LIB, TIER0_LIB, INPUT_LIB, SDL_LIB, SCHEMA_LIB,
     ];
 
-    pub const TEAM_T: u8 = 2;
-    pub const TEAM_CT: u8 = 3;
-
-    pub const WEAPON_UNKNOWN: &str = "unknown";
     pub const DEFAULT_FOV: u32 = 90;
+
+    pub const MESH_SKELETON_BONE_COUNT: usize = 96;
 
     pub const SOUND_ESP_FOOTSTEP_DIAMETER_DEFAULT: f32 = 2000.0;
     pub const SOUND_ESP_GUNSHOT_DIAMETER_DEFAULT: f32 = 3000.0;
@@ -26,7 +25,7 @@ pub mod cs2 {
     pub const GRENADES: &[Weapon] = &[
         Weapon::Decoy,
         Weapon::Flashbang,
-        Weapon::HeGrenade,
+        Weapon::HE,
         Weapon::Incendiary,
         Weapon::Molotov,
         Weapon::Smoke,
@@ -42,19 +41,21 @@ pub mod cs2 {
         pub const FLASHBANG: &str = "21C_FlashbangProjectile";
         pub const HE_GRENADE: &str = "21C_HEGrenadeProjectile";
         pub const DECOY: &str = "17C_DecoyProjectile";
+
+        pub const CHICKEN: &str = "9C_Chicken";
     }
 }
 
 pub mod elf {
-    pub const PROGRAM_HEADER_OFFSET: u64 = 0x20;
-    pub const PROGRAM_HEADER_ENTRY_SIZE: u64 = 0x36;
-    pub const PROGRAM_HEADER_NUM_ENTRIES: u64 = 0x38;
+    pub const PROGRAM_HEADER_OFFSET: usize = 0x20;
+    pub const PROGRAM_HEADER_ENTRY_SIZE: usize = 0x36;
+    pub const PROGRAM_HEADER_NUM_ENTRIES: usize = 0x38;
 
-    pub const SECTION_HEADER_OFFSET: u64 = 0x28;
-    pub const SECTION_HEADER_ENTRY_SIZE: u64 = 0x3A;
-    pub const SECTION_HEADER_NUM_ENTRIES: u64 = 0x3C;
+    pub const SECTION_HEADER_OFFSET: usize = 0x28;
+    pub const SECTION_HEADER_ENTRY_SIZE: usize = 0x3A;
+    pub const SECTION_HEADER_NUM_ENTRIES: usize = 0x3C;
 
-    pub const DYNAMIC_SECTION_PHT_TYPE: u64 = 0x02;
+    pub const DYNAMIC_SECTION_PHT_TYPE: usize = 0x02;
 }
 
 pub const GRENADE_FILE_NAME: &str = "grenades.json";

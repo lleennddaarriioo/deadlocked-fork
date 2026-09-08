@@ -68,12 +68,12 @@ impl Bhop {
             self.debug_checked = true;
         }
 
-        let velocity = process.read::<glam::Vec3>(local_player.pawn + offsets.pawn.velocity);
+        let velocity = process.read::<glam::Vec3>(local_player.pawn.handle + offsets.entity.velocity);
         let is_space_pressed = input.is_key_pressed(crate::cs2::key_codes::KeyCode::Space);
         self.was_space_pressed = is_space_pressed;
 
-        let health = process.read::<i32>(local_player.pawn + offsets.pawn.health);
-        let life_state = process.read::<u8>(local_player.pawn + offsets.pawn.life_state);
+        let health = process.read::<i32>(local_player.pawn.handle + offsets.entity.health);
+        let life_state = process.read::<u8>(local_player.pawn.handle + offsets.entity.life_state);
         if health <= 0 || life_state != 0 {
             return;
         }
@@ -170,14 +170,14 @@ impl Bhop {
                 let speed_change = xy_vel - self.landing_speed;
                 let stamina = if offsets.pawn.movement_services != 0 && offsets.pawn.stamina != 0 {
                     let mv_services =
-                        process.read::<u64>(local_player.pawn + offsets.pawn.movement_services);
+                        process.read::<usize>(local_player.pawn.handle + offsets.pawn.movement_services);
                     if mv_services != 0 {
                         process.read::<f32>(mv_services + offsets.pawn.stamina)
                     } else {
                         0.0
                     }
                 } else if offsets.pawn.stamina != 0 {
-                    process.read::<f32>(local_player.pawn + offsets.pawn.stamina)
+                    process.read::<f32>(local_player.pawn.handle + offsets.pawn.stamina)
                 } else {
                     0.0
                 };

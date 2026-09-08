@@ -1,19 +1,66 @@
-## WARNING THIS IS VIBECODED 
-If you donot suport ai use or vibecoding just dont use it 
+<div align="center">
 
-## Setup
+# deadlocked
+
+[![Matrix Invite](https://img.shields.io/matrix/open-source-cs2-hacking%3Amatrix.org?style=for-the-badge\&logo=matrix\&label=Matrix)](https://matrix.to/#/%23open-source-cs2-hacking:matrix.org)
+[![Discord Invite](https://img.shields.io/discord/1333541580249890949?style=for-the-badge\&logo=discord\&logoColor=white\&label=Discord)](https://discord.gg/eXjG4Ar9Sx)
+
+[![Casual Maintenance Intended](https://casuallymaintained.tech/badge.svg)](https://casuallymaintained.tech/)
+
+<br>
+
+simple cs2 aimbot and esp, for linux only.
+
+<br>
+
+Releases are tagged `v<version>` matching the version in `Cargo.toml` (e.g. `v1.0.0`).
+The built-in update checker compares against the latest release tag and will prompt when a newer version is available.
+
+</div>
+
+<br>
+
+## Quick Start
+
+> [!NOTE]
+> Running NixOS, Fedora Atomic, Hyprland (Legacy .conf config)?
+>
+> See the [compatibility.md](compatibility.md).
+
+Download the [latest release](https://github.com/avitran0/deadlocked/releases). Each release contains the `deadlocked` binary and `setup.sh`.
+
+**Setup (one-time only):**
+
+```bash
+./setup.sh
+```
+
+> **Restart your machine (required)**
+
+This creates a `uinput` group, adds your user to it, and installs a udev rule.
+You only need to do this once, even when updating to newer versions.
+
+**Run:**
+
+```bash
+./deadlocked
+```
+
+The binary will refuse to start if setup hasn't been completed.
+Also make sure the `uinput` kernel module is loaded.
+
+<br>
+
+## Build from Source
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 git clone https://github.com/lleennddaarriioo/deadlocked-fork
 cd deadlocked
-./setup.sh
-# Restart your machine (required)
+cargo run --release
 ```
 
-Also make sure that the `uinput` kernel module is loaded.
-
-Running NixOS or Fedora Atomic? See [OS-Specific Setup](os-setup.md).
+<br>
 
 ## Running
 
@@ -21,17 +68,7 @@ Running NixOS or Fedora Atomic? See [OS-Specific Setup](os-setup.md).
 ./run.sh
 ```
 
-## Syncing & Updates
-
-- **Download latest updates**:
-```bash
-./download.sh
-```
-
-- **Upload updates & capture GUI screenshot preview**:
-```bash
-./upload.sh "optional commit message"
-```
+<br>
 
 ## Features
 
@@ -60,6 +97,15 @@ Running NixOS or Fedora Atomic? See [OS-Specific Setup](os-setup.md).
 - Player tags (helmet, defuser, bomb)
 - Dropped weapons
 - Bomb timer
+- 3D Sound & Footstep ESP
+- Offscreen enemy indicators (OOF arrows)
+- Animated floating damage text
+
+### Hitsounds & Audio
+
+- Custom audio hitsounds & kill sound engine (Rust Headshot, COD Hitmarker, Metallic Bell, CSGO Ding, Bubble, Neverlose NL, Skeet GS, Aimware MS, Primordial, Custom WAV)
+- Volume & pitch controls with live GUI preview on change
+- Only local player shot filter & 1-tap fatal kill filter
 
 ### Triggerbot
 
@@ -71,6 +117,7 @@ Running NixOS or Fedora Atomic? See [OS-Specific Setup](os-setup.md).
 - Scope check
 - Velocity threshold
 - Head only mode
+- Aimbot-locked triggerbot threshold
 
 ### Bunnyhop & Movement
 
@@ -80,8 +127,7 @@ Running NixOS or Fedora Atomic? See [OS-Specific Setup](os-setup.md).
 
 ### Web Radar
 
-- WebSockets-based real-time 2D web radar dashboard
-- Public URL tunnel support via Cloudflare Tunnels
+- WebSockets-based real-time 2D web radar dashboard ([FAQ](radar.md))
 
 ### Standalone RCS
 
@@ -93,17 +139,6 @@ Running NixOS or Fedora Atomic? See [OS-Specific Setup](os-setup.md).
 - Triggerbot
 - RCS
 
-### Misc & Telemetry
-
-- Sniper crosshair
-- Bomb timer
-- Mic Tone generator
-- Real-time thread performance & frame telemetry graph
-
-### GUI & Previews
-
-- Screenshots and preview captures of the GUI layout are saved in `media/previews/`.
-
 ### Unsafe
 
 > [!WARNING]
@@ -114,13 +149,21 @@ Running NixOS or Fedora Atomic? See [OS-Specific Setup](os-setup.md).
 - No smoke
 - Smoke color change
 
+<br>
+
 ## FAQ
 
-### Where are my configs saved?
+<details>
+<summary>Where are my configs saved?</summary>
 
 Configs are saved in `$XDG_CONFIG_HOME` with fallback to `$HOME/.config`. Otherwise they're saved alongside the executable.
 
-### Which desktop environments and window managers are supported?
+</details>
+
+<br>
+
+<details>
+<summary>Which desktop environments and window managers are supported?</summary>
 
 **Best support:**
 
@@ -137,15 +180,16 @@ Configs are saved in `$XDG_CONFIG_HOME` with fallback to `$HOME/.config`. Otherw
 - i3
 - OpenBox
 - XFCE
-- Hyprland (tweaks may be needed; no guarantees)
+- Hyprland (tweaks may be needed, no guarantees; see [compatibility.md](compatibility.md/#hyprland))
 
-### I'm using Hyprland and something doesn't work
+</details>
 
-Running `./setup.sh` will ask if you want to automatically add the required window rules for `deadlocked_overlay` to your Hyprland configuration (`~/.config/hypr/hyprland.conf` or `hyprland.lua`).
+<br>
 
-If you prefer to add them manually, add the following rules to your configuration:
+<details>
+<summary>Hyprland Window Rules</summary>
 
-**For `hyprland.conf`:**
+For `hyprland.conf`:
 ```ini
 windowrule = float 1, match:title ^(deadlocked_overlay)$
 windowrule = no_focus 1, match:title ^(deadlocked_overlay)$
@@ -156,36 +200,4 @@ windowrule = no_shadow 1, match:title ^(deadlocked_overlay)$
 windowrule = no_blur 1, match:class ^(deadlocked)$
 ```
 
-**For `hyprland.lua`:**
-```lua
-hl.window_rule({ match = { title = "^(deadlocked_overlay)$" }, float = 1 })
-hl.window_rule({ match = { title = "^(deadlocked_overlay)$" }, no_focus = 1 })
-hl.window_rule({ match = { title = "^(deadlocked_overlay)$" }, pin = 1 })
-hl.window_rule({ match = { title = "^(deadlocked_overlay)$" }, no_blur = 1 })
-hl.window_rule({ match = { title = "^(deadlocked_overlay)$" }, no_anim = 1 })
-hl.window_rule({ match = { title = "^(deadlocked_overlay)$" }, no_shadow = 1 })
-hl.window_rule({ match = { class = "^(deadlocked)$" }, no_blur = 1 })
-```
-
-### I'm using Gamescope and the overlay is too small
-
-The game still thinks it's running in 16:9 resolution, so the cheat gets the wrong window resolution.
-Try running the game without Gamescope.
-
-### My screen/overlay is black
-
-Your compositor or window manager doesn't support transparency, or it's not enabled.
-
-On KDE, go into the `Display and Monitor` settings, then `Compositor`, and tick `Enable compositor on startup`.
-
-### The overlay shows but I can't click anything
-
-The window couldn't be made click-through. This is a window manager/compositor limitation.
-
-### The overlay doesn't show up
-
-Your window manager doesn't support positioning or resizing windows.
-
-### The overlay isn't on top of other windows
-
-Your window manager doesn't support always-on-top windows.
+</details>

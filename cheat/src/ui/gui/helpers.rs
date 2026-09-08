@@ -2,6 +2,7 @@ use std::hash::Hash;
 
 use egui::{CollapsingHeader, Color32, DragValue, Event, Sense, Ui, Widget};
 
+use crate::config::text::TextCategory;
 use crate::cs2::key_codes::KeyCode;
 
 pub fn collapsing_open(ui: &mut Ui, title: &str, add_body: impl FnOnce(&mut Ui)) {
@@ -37,7 +38,7 @@ pub fn drag(ui: &mut Ui, label: &str, drag: DragValue) -> bool {
     .changed()
 }
 
-pub fn combo_box<T: std::fmt::Debug + strum::IntoEnumIterator + PartialEq>(
+pub fn combo_box<T: std::fmt::Display + strum::IntoEnumIterator + PartialEq>(
     ui: &mut Ui,
     id: &str,
     label: &str,
@@ -45,10 +46,10 @@ pub fn combo_box<T: std::fmt::Debug + strum::IntoEnumIterator + PartialEq>(
 ) -> bool {
     let mut changed = false;
     egui::ComboBox::new(id, label)
-        .selected_text(format!("{:?}", *value))
+        .selected_text(format!("{}", *value))
         .show_ui(ui, |ui| {
             for mode in T::iter() {
-                let text = format!("{:?}", &mode);
+                let text = format!("{}", mode);
                 if ui.selectable_value(value, mode, text).clicked() {
                     changed = true;
                 }
@@ -85,6 +86,70 @@ pub fn color_picker(ui: &mut Ui, label: &str, color: &mut Color32) -> bool {
     changed
 }
 
+pub fn text_settings_button(ui: &mut Ui, open_popup: &mut Option<String>, id: &str) {
+    if ui.button("⚙").on_hover_text("Text settings").clicked() {
+        *open_popup = Some(id.to_string());
+    }
+}
+
+pub fn text_settings_popup(
+    ui: &mut Ui,
+    label: &str,
+    category: &mut TextCategory,
+    open_popup: &mut Option<String>,
+    popup_id: &str,
+) -> bool {
+    let is_open = open_popup.as_deref() == Some(popup_id);
+    if !is_open {
+        return false;
+    }
+
+    let mut open = true;
+    let mut changed = false;
+    egui::Window::new(label)
+        .id(egui::Id::new(popup_id))
+        .collapsible(false)
+        .resizable(false)
+        .open(&mut open)
+        .show(ui.ctx(), |ui| {
+            changed |= ui
+                .horizontal(|ui| {
+                    ui.label("Font Size");
+                    ui.add(
+                        egui::DragValue::new(&mut category.font_size)
+                            .range(1.0..=99.0)
+                            .speed(0.2)
+                            .max_decimals(1),
+                    )
+                    .changed()
+                })
+                .inner;
+
+            changed |= color_picker(ui, "Color", &mut category.color);
+
+            ui.separator();
+
+            changed |= combo_box(
+                ui,
+                &format!("{popup_id}_pos"),
+                "Position",
+                &mut category.position,
+            );
+            changed |= combo_box(
+                ui,
+                &format!("{popup_id}_align"),
+                "Align",
+                &mut category.align,
+            );
+        });
+
+    if !open {
+        *open_popup = None;
+    }
+
+    changed
+}
+
 pub fn keybind(ui: &mut Ui, id: &str, label: &str, keycode: &mut KeyCode) -> bool {
     ui.horizontal(|ui| {
         let res = ui.add(Keybind::new(keycode, id));
@@ -101,7 +166,7 @@ pub struct Keybind<'gui> {
 }
 
 impl<'gui> Keybind<'gui> {
-    pub fn new(keycode: &'gui mut KeyCode, id: impl Hash) -> Self {
+    pub fn new(keycode: &'gui mut KeyCode, id: impl std::fmt::Debug + Hash) -> Self {
         Self {
             keycode,
             id: egui::Id::new(id),
@@ -180,4 +245,8 @@ impl<'gui> Widget for Keybind<'gui> {
 
         response
     }
+}
+
+pub fn open_url(url: &str) {
+    let _ = std::process::Command::new("xdg-open").arg(url).spawn();
 }

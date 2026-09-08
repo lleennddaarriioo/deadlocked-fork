@@ -1,18 +1,24 @@
-use egui::{Align2, Color32, Painter, Pos2, Shape, Stroke, Ui, pos2};
+use std::sync::Arc;
+
+use egui::{Align2, Color32, PaintCallback, Painter, Pos2, Rect, Shape, Stroke, Ui, pos2};
+use egui_glow::{CallbackFn, glow};
 use glam::{Vec3, vec3};
-use shared::{data::Data, weapon::Weapon};
+use shared::{Data, Weapon};
 
 use crate::{
     config::aim::AimbotConfig,
     math::world_to_screen,
-    ui::{app::App, grenades::Grenade},
+    ui::{app::AppState, grenades::Grenade},
 };
 
 mod entity;
 mod hud;
+pub mod model;
+mod models;
+mod opengl;
 mod player;
 
-impl App {
+impl AppState {
     fn aimbot_config(&self, weapon: &Weapon) -> &AimbotConfig {
         if let Some(weapon_config) = self.config.aim.weapons.get(weapon)
             && weapon_config.aimbot.enable_override
@@ -22,20 +28,21 @@ impl App {
         &self.config.aim.global.aimbot
     }
 
-    pub fn overlay(&mut self, ui: &mut Ui) {
+    pub fn overlay(&mut self, ui: &mut Ui, glow: &Arc<glow::Context>) {
         ui.ctx().set_pixels_per_point(1.0);
         let painter = ui.layer_painter(egui::LayerId::background());
 
         self.update_trails();
         self.update_player_sounds();
-        
-        let (win_pos, win_size) = {
-            let data = self.data.lock();
-            (data.window_position, data.window_size)
-        };
-        self.update_window(win_pos, win_size);
 
         let data = &self.data.lock();
+
+        if self.model_renderer.is_none() {
+            match model::ModelRenderer::new(glow.clone()) {
+                Ok(renderer) => self.model_renderer = Some(Arc::new(renderer)),
+                Err(error) => utils::error!("failed to initialize model renderer: {error}"),
+            }
+        }
         self.overlay_debug(&painter, data);
 
         for player in &data.players {
@@ -58,6 +65,7 @@ impl App {
             self.draw_entity(&painter, entity, data);
         }
 
+        self.draw_player_models(&painter, data);
         self.draw_bomb_timer(&painter, data);
         self.draw_fov_circle(&painter, data);
         self.draw_spread_circle(&painter, data);
@@ -72,57 +80,117 @@ impl App {
         self.draw_floating_damage_text(&painter, data);
 
         if data.aimbot_active {
-            self.text(
+            let cat = &self.config.hud.overlay_text.status_text;
+            self.text_sized(
                 &painter,
                 "aimbot active",
-                pos2(
-                    data.window_size.x / 2.0 + 8.0,
-                    data.window_size.y / 2.0 + 8.0,
+                hud::screen_anchor(
+                    [data.window_size.x, data.window_size.y],
+                    cat.position,
+                    8.0,
+                    8.0,
                 ),
-                Align2::LEFT_TOP,
-                None,
+                cat.align.to_align2(),
+                cat.color,
+                cat.font_size,
             );
         }
 
         if data.triggerbot_active {
-            self.text(
+            let cat = &self.config.hud.overlay_text.status_text;
+            self.text_sized(
                 &painter,
                 "trigger active",
-                pos2(
-                    data.window_size.x / 2.0 + 8.0,
-                    data.window_size.y / 2.0 + 8.0 + self.config.hud.font_size,
+                hud::screen_anchor(
+                    [data.window_size.x, data.window_size.y],
+                    cat.position,
+                    8.0,
+                    8.0 + cat.font_size,
                 ),
-                Align2::LEFT_TOP,
-                None,
+                cat.align.to_align2(),
+                cat.color,
+                cat.font_size,
             );
         }
 
         self.grenade_manager(data, &painter);
     }
 
-    fn update_window(&mut self, win_pos: glam::Vec2, win_size: glam::Vec2) {
-        let Some(window) = &self.overlay else {
+    fn draw_player_models(&self, painter: &Painter, data: &Data) {
+        use crate::config::player::{DrawMode, ModelRenderMode};
+
+        let Some(renderer) = self.model_renderer.as_ref() else {
             return;
         };
-
-        let target_x = win_pos.x as i32 + self.config.hud.overlay_offset_x;
-        let target_y = win_pos.y as i32 + self.config.hud.overlay_offset_y;
-
-        if self.last_overlay_pos != Some((target_x, target_y)) {
-            window
-                .window()
-                .set_outer_position(winit::dpi::PhysicalPosition::new(target_x, target_y));
-            self.last_overlay_pos = Some((target_x, target_y));
+        if !data.esp_active || self.config.player.draw_model == DrawMode::None {
+            return;
         }
 
-        let target_w = win_size.x.max(1.0) as u32;
-        let target_h = win_size.y.max(1.0) as u32;
-
-        if self.last_overlay_size != Some((target_w, target_h)) {
-            let _ = window
-                .window()
-                .request_inner_size(winit::dpi::PhysicalSize::new(target_w, target_h));
-            self.last_overlay_size = Some((target_w, target_h));
+        let view = data.view_matrix.to_cols_array();
+        let window = data.window_size;
+        let players = data.players.iter().chain(
+            self.config
+                .player
+                .show_friendlies
+                .then_some(data.friendlies.iter())
+                .into_iter()
+                .flatten(),
+        );
+        for player in players {
+            if player.skeleton.is_empty() {
+                continue;
+            }
+            let renderer = renderer.clone();
+            let model_name = player.model_name.clone();
+            let skeleton = player.skeleton.clone();
+            let (visible, invisible) = match self.config.player.draw_model {
+                DrawMode::None => unreachable!(),
+                DrawMode::Color => (
+                    self.config.player.model_visible_color,
+                    self.config.player.model_invisible_color,
+                ),
+                DrawMode::Health => (
+                    self.health_color(
+                        player.health,
+                        player.max_health,
+                        self.config.player.model_visible_color.a(),
+                    ),
+                    self.health_color(
+                        player.health,
+                        player.max_health,
+                        self.config.player.model_invisible_color.a(),
+                    ),
+                ),
+            };
+            let mode = match self.config.player.model_mode {
+                ModelRenderMode::Filled => model::ModelRenderMode::Filled,
+                ModelRenderMode::Wireframe => model::ModelRenderMode::Wireframe,
+            };
+            let callback = CallbackFn::new(move |info, painter| {
+                let viewport = info.viewport_in_pixels();
+                renderer.render(
+                    painter.gl(),
+                    model::ModelRenderParams {
+                        model_name: &model_name,
+                        skeleton: &skeleton,
+                        viewport: (
+                            viewport.left_px,
+                            viewport.from_bottom_px,
+                            viewport.width_px,
+                            viewport.height_px,
+                        ),
+                        view: &view,
+                        model: &model::model_matrix(),
+                        visible_color: visible.to_normalized_gamma_f32(),
+                        invisible_color: invisible.to_normalized_gamma_f32(),
+                        mode,
+                    },
+                );
+            });
+            painter.add(PaintCallback {
+                rect: Rect::from_min_size(Pos2::ZERO, egui::vec2(window.x, window.y)),
+                callback: Arc::new(callback),
+            });
         }
     }
 
@@ -395,7 +463,10 @@ impl App {
         let v3 = center - right * CROSS_SIZE + up * CROSS_SIZE;
         let v4 = center - right * CROSS_SIZE - up * CROSS_SIZE;
 
-        let stroke = Stroke::new(self.config.hud.line_width, self.config.hud.text_color);
+        let stroke = Stroke::new(
+            self.config.hud.line_width,
+            self.config.hud.overlay_text.grenade_lineup.color,
+        );
         let stroke_bg = Stroke::new(self.config.hud.line_width * 2.0, Color32::BLACK);
 
         let Some(v1) = world_to_screen(&v1, data) else {
@@ -418,23 +489,28 @@ impl App {
         painter.line_segment([v2, v3], stroke);
 
         let text_center = center - up * CROSS_SIZE;
-        if let Some(text_center) = world_to_screen(&text_center, data) {
-            self.text(
+        if let Some(screen) = world_to_screen(&text_center, data) {
+            let cat = &self.config.hud.overlay_text.grenade_lineup;
+            let anchor = hud::point_anchor(screen, cat.position, cat.font_size * 0.3);
+            let align = cat.align.to_align2();
+            self.text_sized(
                 painter,
                 &grenade.name,
-                text_center,
-                Align2::CENTER_TOP,
-                None,
+                anchor,
+                align,
+                cat.color,
+                cat.font_size,
             );
-            let mut offset = self.config.hud.font_size;
-            self.text(
+            let mut offset = cat.font_size;
+            self.text_sized(
                 painter,
-                format!("{}", grenade.weapon,),
-                text_center + egui::vec2(0.0, offset),
-                Align2::CENTER_TOP,
-                None,
+                format!("{}", grenade.weapon),
+                anchor + egui::vec2(0.0, offset),
+                align,
+                cat.color,
+                cat.font_size,
             );
-            offset += self.config.hud.font_size;
+            offset += cat.font_size;
             let text = match (
                 grenade.modifiers.duck,
                 grenade.modifiers.jump,
@@ -450,57 +526,43 @@ impl App {
                 (false, false, true) => "Run",
             };
             if !text.is_empty() {
-                self.text(
+                self.text_sized(
                     painter,
                     text,
-                    text_center + egui::vec2(0.0, offset),
-                    Align2::CENTER_TOP,
-                    None,
+                    anchor + egui::vec2(0.0, offset),
+                    align,
+                    cat.color,
+                    cat.font_size,
                 );
-                offset += self.config.hud.font_size;
+                offset += cat.font_size;
             }
             if !grenade.description.is_empty() {
-                self.text(
+                self.text_sized(
                     painter,
                     &grenade.description,
-                    text_center + egui::vec2(0.0, offset),
-                    Align2::CENTER_TOP,
-                    None,
+                    anchor + egui::vec2(0.0, offset),
+                    align,
+                    cat.color,
+                    cat.font_size,
                 );
             }
         }
     }
 
-    fn health_color(&self, health: i32, alpha: u8) -> Color32 {
-        let health = health.clamp(0, 100);
+    fn health_color(&self, health: i32, max_health: i32, alpha: u8) -> Color32 {
+        let max_health = max_health.max(1);
+        let health = health.clamp(0, max_health);
+        let percent = health as f32 / max_health as f32;
 
-        let (r, g) = if health <= 50 {
-            let factor = health as f32 / 50.0;
+        let (r, g) = if percent <= 0.5 {
+            let factor = percent * 2.0;
             (255, (255.0 * factor) as u8)
         } else {
-            let factor = 1.0 - (health - 50) as f32 / 50.0;
+            let factor = 1.0 - (percent - 0.5) * 2.0;
             ((255.0 * factor) as u8, 255)
         };
 
         Color32::from_rgba_unmultiplied(r, g, 0, alpha)
-    }
-
-    fn text(
-        &self,
-        painter: &Painter,
-        text: impl AsRef<str>,
-        position: Pos2,
-        align: Align2,
-        color: Option<Color32>,
-    ) {
-        self.text_sized(
-            painter,
-            text,
-            position,
-            align,
-            color,
-            self.config.hud.font_size,
-        );
     }
 
     fn text_sized(
@@ -509,16 +571,12 @@ impl App {
         text: impl AsRef<str>,
         position: Pos2,
         align: Align2,
-        color: Option<Color32>,
+        color: Color32,
         font_size: f32,
     ) {
         use egui::FontId;
 
         let font = FontId::proportional(font_size);
-        let color = match color {
-            Some(color) => color,
-            None => self.config.hud.text_color,
-        };
         if self.config.hud.text_outline {
             for (pos, color) in outline(position, color) {
                 painter.text(pos, align, text.as_ref(), font.clone(), color);
@@ -526,6 +584,25 @@ impl App {
         } else {
             painter.text(position, align, text.as_ref(), font, color);
         }
+    }
+
+    fn text(
+        &self,
+        painter: &Painter,
+        text: impl AsRef<str>,
+        position: Pos2,
+        align: Align2,
+        color: impl Into<Option<Color32>>,
+    ) {
+        let color = color.into().unwrap_or(self.config.accent_color);
+        self.text_sized(
+            painter,
+            text,
+            position,
+            align,
+            color,
+            16.0,
+        );
     }
 }
 
