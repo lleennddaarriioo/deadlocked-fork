@@ -95,11 +95,29 @@ cargo run --release --bin deadlocked
 - Offscreen enemy indicators (OOF arrows)
 - Animated floating damage text
 
+### Flag Bypass Mode (ESP & Visuals Only)
+
+- Automatic fallback when `/dev/uinput` is unavailable, unreadable, or kernel was updated
+- Toggleable in GUI settings
+- Disables all memory writes and input hooks while leaving ESP, 3D Sound ESP, Damage Text, & Web Radar active
+
 ### Hitsounds & Audio
 
 - Custom audio hitsounds & kill sound engine (Rust Headshot, COD Hitmarker, Metallic Bell, CSGO Ding, Bubble, Neverlose NL, Skeet GS, Aimware MS, Primordial, Custom WAV)
 - Volume & pitch controls with live GUI preview on change
 - Only local player shot filter & 1-tap fatal kill filter
+
+### Microphone & Voice Features
+
+- Virtual PipeWire / PulseAudio microphone routing engine
+- Desktop audio loopback & ear-rape stream generator (Hotkeyed)
+- Pure sine tone generator with customizable frequency (Hz) and gain boost
+
+### Telemetry & Thread Diagnostics
+
+- Master TPS control toolbar (Global TPS override for all thread loops)
+- Real-time thread performance pie chart breakdown (Cache, BVH, Aimbot, Triggerbot, RCS, Bhop, Input)
+- Configurable Graph / Telemetry update refresh rate (Hz)
 
 ### Triggerbot
 
