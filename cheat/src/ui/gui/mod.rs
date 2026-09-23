@@ -104,7 +104,7 @@ impl AppState {
         write_config(&self.config, &self.current_config);
     }
 
-    fn gui(&mut self, ui: &mut Ui) {
+    pub(crate) fn gui(&mut self, ui: &mut Ui) {
         ui.ctx().set_pixels_per_point(self.display_scale);
         
         // Ensure image loaders are installed so egui can decode the compiled PNG
@@ -371,7 +371,7 @@ impl App {
         }
     }
 
-    fn update_overlay_window(overlay: &WindowContext, data: &Data) {
+    pub(crate) fn update_overlay_window(overlay: &WindowContext, data: &Data) {
         use winit::dpi::PhysicalPosition;
         let position =
             PhysicalPosition::new(data.window_position.x as i32, data.window_position.y as i32);
