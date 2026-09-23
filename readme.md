@@ -22,6 +22,10 @@ The built-in update checker compares against the latest release tag and will pro
 
 ## Quick Start
 
+> [!WARNING]
+> **Vibecoded Fork Notice**
+> This repository is a vibecoded, performance-boosted fork featuring Flag Bypass Mode, custom Audio/Mic engines, real-time Telemetry diagnostics, sub-pixel exponential aimbot smoothing, and resilient multi-offset BVH map geometry parsing.
+
 > [!NOTE]
 > Running NixOS, Fedora Atomic, Hyprland (Legacy .conf config)?
 >
