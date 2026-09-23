@@ -122,29 +122,29 @@ impl CS2 {
         self.aimbot_predicted_damage = None;
         self.triggerbot_predicted_damage = None;
 
-        let input_interval_ms = if config.input_tps == 0 { 0 } else { 1000 / config.input_tps.max(1) };
+        let input_interval_sec = if config.input_tps == 0 { 0.0 } else { 1.0 / config.input_tps.max(1) as f64 };
         let mut t_input_val = 0.0;
-        if self.last_input.elapsed() >= Duration::from_millis(input_interval_ms as u64) {
+        if self.last_input.elapsed().as_secs_f64() >= input_interval_sec {
             let t_input_start = Instant::now();
             self.input.update(&self.process, &self.offsets);
             t_input_val = t_input_start.elapsed().as_secs_f32() * 1000.0;
             self.last_input = Instant::now();
         }
 
-        let cache_interval_ms = if config.cache_hz == 0 { 0 } else { 1000 / config.cache_hz.max(1) };
-        let bvh_interval_ms = if config.bvh_tps == 0 { 0 } else { 1000 / config.bvh_tps.max(1) };
+        let cache_interval_sec = if config.cache_hz == 0 { 0.0 } else { 1.0 / config.cache_hz.max(1) as f64 };
+        let bvh_interval_sec = if config.bvh_tps == 0 { 0.0 } else { 1.0 / config.bvh_tps.max(1) as f64 };
 
         let mut t_cache_val = 0.0;
         let mut t_bvh_val = 0.0;
 
-        if self.last_cache.elapsed() >= Duration::from_millis(cache_interval_ms as u64) {
+        if self.last_cache.elapsed().as_secs_f64() >= cache_interval_sec {
             let t_cache_start = Instant::now();
             self.cache_entities();
             t_cache_val = t_cache_start.elapsed().as_secs_f32() * 1000.0;
             self.last_cache = Instant::now();
         }
 
-        if self.last_bvh.elapsed() >= Duration::from_millis(bvh_interval_ms as u64) {
+        if self.last_bvh.elapsed().as_secs_f64() >= bvh_interval_sec {
             let t_bvh_start = Instant::now();
             self.check_bvh();
             t_bvh_val = t_bvh_start.elapsed().as_secs_f32() * 1000.0;
@@ -170,9 +170,9 @@ impl CS2 {
         self.esp_toggle(config);
         let t_other_features_val = t_other_features_start.elapsed().as_secs_f32() * 1000.0;
 
-        let trigger_interval_ms = if config.trigger_tps == 0 { 0 } else { 1000 / config.trigger_tps.max(1) };
+        let trigger_interval_sec = if config.trigger_tps == 0 { 0.0 } else { 1.0 / config.trigger_tps.max(1) as f64 };
         let mut t_trigger_val = 0.0;
-        if self.last_trigger.elapsed() >= Duration::from_millis(trigger_interval_ms as u64) {
+        if self.last_trigger.elapsed().as_secs_f64() >= trigger_interval_sec {
             let t_trigger_start = Instant::now();
             self.triggerbot(config);
             self.auto_pistol(config);
@@ -187,10 +187,10 @@ impl CS2 {
 
         self.find_target(config);
 
-        let bhop_interval_ms = if config.bhop_tps == 0 { 0 } else { 1000 / config.bhop_tps.max(1) };
+        let bhop_interval_sec = if config.bhop_tps == 0 { 0.0 } else { 1.0 / config.bhop_tps.max(1) as f64 };
         let mut t_bhop_val = 0.0;
         let mut t_counter_strafe_val = 0.0;
-        if self.last_bhop.elapsed() >= Duration::from_millis(bhop_interval_ms as u64) {
+        if self.last_bhop.elapsed().as_secs_f64() >= bhop_interval_sec {
             if let Some(local_player) = Player::local_player(self) {
                 let t_bhop_start = Instant::now();
                 self.bhop.run(
@@ -347,11 +347,11 @@ impl CS2 {
 
         self.mic_tone.run(&self.input, config);
 
-        let aimbot_interval_ms = if config.aimbot_tps == 0 { 0 } else { 1000 / config.aimbot_tps.max(1) };
+        let aimbot_interval_sec = if config.aimbot_tps == 0 { 0.0 } else { 1.0 / config.aimbot_tps.max(1) as f64 };
         let mut t_aim_val = 0.0;
         let mut t_rcs_val = 0.0;
 
-        if self.last_aimbot.elapsed() >= Duration::from_millis(aimbot_interval_ms as u64) {
+        if self.last_aimbot.elapsed().as_secs_f64() >= aimbot_interval_sec {
             let t_aim_start = Instant::now();
             let aimbot_ran = self.aimbot(config, mouse);
             t_aim_val = t_aim_start.elapsed().as_secs_f32() * 1000.0;
@@ -452,44 +452,51 @@ impl CS2 {
 
                 let mut chams_segments = Vec::new();
                 if config.player.draw_chams {
-                    if let Some(bvh) = &self.bvh {
-                        let eye_pos = local_player.eye_position(self);
+                    let eye_pos = local_player.eye_position(self);
+                    let is_player_vis = player.visible(self, &local_player);
 
-                        let connections = [
-                            (Bones::Hip, Bones::Spine1, 4, 1.0),
-                            (Bones::Spine1, Bones::Spine2, 4, 1.2),
-                            (Bones::Spine2, Bones::Spine3, 4, 1.2),
-                            (Bones::Spine3, Bones::Spine4, 4, 1.2),
-                            (Bones::Spine4, Bones::Neck, 3, 0.8),
-                            (Bones::Neck, Bones::LeftShoulder, 3, 0.6),
-                            (Bones::LeftShoulder, Bones::LeftElbow, 5, 0.5),
-                            (Bones::LeftElbow, Bones::LeftHand, 5, 0.4),
-                            (Bones::Neck, Bones::RightShoulder, 3, 0.6),
-                            (Bones::RightShoulder, Bones::RightElbow, 5, 0.5),
-                            (Bones::RightElbow, Bones::RightHand, 5, 0.4),
-                            (Bones::Hip, Bones::LeftHip, 4, 0.8),
-                            (Bones::LeftHip, Bones::LeftKnee, 6, 0.7),
-                            (Bones::LeftKnee, Bones::LeftFoot, 6, 0.5),
-                            (Bones::Hip, Bones::RightHip, 4, 0.8),
-                            (Bones::RightHip, Bones::RightKnee, 6, 0.7),
-                            (Bones::RightKnee, Bones::RightFoot, 6, 0.5),
-                        ];
+                    let connections = [
+                        (Bones::Hip, Bones::Spine1, 4, 1.0),
+                        (Bones::Spine1, Bones::Spine2, 4, 1.2),
+                        (Bones::Spine2, Bones::Spine3, 4, 1.2),
+                        (Bones::Spine3, Bones::Spine4, 4, 1.2),
+                        (Bones::Spine4, Bones::Neck, 3, 0.8),
+                        (Bones::Neck, Bones::LeftShoulder, 3, 0.6),
+                        (Bones::LeftShoulder, Bones::LeftElbow, 5, 0.5),
+                        (Bones::LeftElbow, Bones::LeftHand, 5, 0.4),
+                        (Bones::Neck, Bones::RightShoulder, 3, 0.6),
+                        (Bones::RightShoulder, Bones::RightElbow, 5, 0.5),
+                        (Bones::RightElbow, Bones::RightHand, 5, 0.4),
+                        (Bones::Hip, Bones::LeftHip, 4, 0.8),
+                        (Bones::LeftHip, Bones::LeftKnee, 6, 0.7),
+                        (Bones::LeftKnee, Bones::LeftFoot, 6, 0.5),
+                        (Bones::Hip, Bones::RightHip, 4, 0.8),
+                        (Bones::RightHip, Bones::RightKnee, 6, 0.7),
+                        (Bones::RightKnee, Bones::RightFoot, 6, 0.5),
+                    ];
 
-                        for &(a_bone, b_bone, samples, thickness) in &connections {
-                            if let (Some(a_pos), Some(b_pos)) = (bones.get(&a_bone), bones.get(&b_bone)) {
-                                let mut prev_pt = *a_pos;
-                                let mut prev_vis = bvh.has_line_of_sight(eye_pos, prev_pt);
+                    for &(a_bone, b_bone, samples, thickness) in &connections {
+                        if let (Some(a_pos), Some(b_pos)) = (bones.get(&a_bone), bones.get(&b_bone)) {
+                            let mut prev_pt = *a_pos;
+                            let mut prev_vis = if let Some(bvh) = &self.bvh {
+                                bvh.has_line_of_sight(eye_pos, prev_pt)
+                            } else {
+                                is_player_vis
+                            };
+                            
+                            for i in 1..=samples {
+                                let t = i as f32 / samples as f32;
+                                let pt = *a_pos + (*b_pos - *a_pos) * t;
+                                let vis = if let Some(bvh) = &self.bvh {
+                                    bvh.has_line_of_sight(eye_pos, pt)
+                                } else {
+                                    is_player_vis
+                                };
                                 
-                                for i in 1..=samples {
-                                    let t = i as f32 / samples as f32;
-                                    let pt = *a_pos + (*b_pos - *a_pos) * t;
-                                    let vis = bvh.has_line_of_sight(eye_pos, pt);
-                                    
-                                    chams_segments.push((prev_pt, pt, prev_vis, thickness));
-                                    
-                                    prev_pt = pt;
-                                    prev_vis = vis;
-                                }
+                                chams_segments.push((prev_pt, pt, prev_vis, thickness));
+                                
+                                prev_pt = pt;
+                                prev_vis = vis;
                             }
                         }
                     }
@@ -751,7 +758,7 @@ impl CS2 {
             let speed = player.velocity.truncate().length();
             let pos = player.position;
             if player.shots_fired > 0 {
-                if !self.sound_events.iter().any(|e| (e.position - pos).length() < 50.0 && e.age_secs < 0.2) {
+                if !self.sound_events.iter().any(|e| (e.position - pos).length() < 150.0 && e.age_secs < 0.6) {
                     self.sound_events.push(shared::data::SoundEventData {
                         position: pos,
                         event_type: shared::data::SoundEventType::Gunshot,
@@ -759,7 +766,7 @@ impl CS2 {
                     });
                 }
             } else if speed > 130.0 {
-                if !self.sound_events.iter().any(|e| (e.position - pos).length() < 40.0 && e.age_secs < 0.3) {
+                if !self.sound_events.iter().any(|e| (e.position - pos).length() < 150.0 && e.age_secs < 0.8) {
                     self.sound_events.push(shared::data::SoundEventData {
                         position: pos,
                         event_type: shared::data::SoundEventType::Footstep,
@@ -767,7 +774,7 @@ impl CS2 {
                     });
                 }
             } else if player.is_defusing {
-                if !self.sound_events.iter().any(|e| (e.position - pos).length() < 50.0 && e.age_secs < 0.5) {
+                if !self.sound_events.iter().any(|e| (e.position - pos).length() < 150.0 && e.age_secs < 1.0) {
                     self.sound_events.push(shared::data::SoundEventData {
                         position: pos,
                         event_type: shared::data::SoundEventType::BombDefuse,
@@ -822,12 +829,18 @@ impl CS2 {
                 while relative_angle > std::f32::consts::PI { relative_angle -= 2.0 * std::f32::consts::PI; }
                 while relative_angle < -std::f32::consts::PI { relative_angle += 2.0 * std::f32::consts::PI; }
 
+                let is_onscreen = match crate::math::world_to_screen(&player.position, data) {
+                    Some(pt) => pt.x >= 0.0 && pt.x <= data.window_size.x && pt.y >= 0.0 && pt.y <= data.window_size.y,
+                    None => false,
+                };
+
                 data.offscreen_players.push(shared::data::OffscreenPlayerData {
                     angle_rad: relative_angle,
                     distance_m: dist_m,
                     health: player.health,
                     team_is_friendly: false,
                     visible: player.visible,
+                    is_onscreen,
                 });
             }
         }
@@ -1062,9 +1075,19 @@ impl CS2 {
         self.process.read::<u8>(self.offsets.convar.ffa + 0x58) == 1
     }
 
-    fn current_time(&self) -> f32 {
+    pub fn current_time(&self) -> f32 {
         let global_vars: usize = self.process.read(self.offsets.direct.global_vars);
         self.process.read(global_vars + 0x30)
+    }
+
+    pub fn framecount(&self) -> i32 {
+        let global_vars: usize = self.process.read(self.offsets.direct.global_vars);
+        self.process.read(global_vars + 0x04)
+    }
+
+    pub fn tickcount(&self) -> i32 {
+        let global_vars: usize = self.process.read(self.offsets.direct.global_vars);
+        self.process.read(global_vars + 0x3C)
     }
 
     fn current_map(&self) -> String {

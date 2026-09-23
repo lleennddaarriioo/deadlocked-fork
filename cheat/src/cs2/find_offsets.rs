@@ -138,7 +138,12 @@ impl CS2 {
         if let Some(vphys_world) = self.process.scan(
             "4c 8d 35 ? ? ? ? 49 8b 3e e8 ? ? ? ? 48 89 c2",
             offsets.library.client,
-        ) {
+        ).or_else(|| {
+            self.process.scan(
+                "48 8b 0d ? ? ? ? 48 85 c9 74 ? 48 8b 01",
+                offsets.library.client,
+            )
+        }) {
             let vphys_world_global_ptr = self.process.get_relative_address(vphys_world, 3, 7);
             offsets.direct.vphys_world = vphys_world_global_ptr;
         } else {
@@ -192,6 +197,7 @@ impl CS2 {
             get_offset("CCSPlayerController", "m_pActionTrackingServices");
 
         offsets.entity.health = get_offset("C_BaseEntity", "m_iHealth");
+        offsets.entity.max_health = get_offset("C_BaseEntity", "m_iMaxHealth");
         offsets.entity.team = get_offset("C_BaseEntity", "m_iTeamNum");
         offsets.entity.life_state = get_offset("C_BaseEntity", "m_lifeState");
         offsets.entity.game_scene_node = get_offset("C_BaseEntity", "m_pGameSceneNode");

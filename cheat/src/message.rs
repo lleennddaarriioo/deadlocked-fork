@@ -26,7 +26,7 @@ pub struct GameMessage(pub Box<Config>);
 #[derive(Clone)]
 pub enum UiMessage {
     Status(GameStatus),
-    FrameTime(Duration),
+    FrameTime(Duration, i32, i32), // (duration, framecount, tickcount)
 }
 
 #[derive(Clone)]

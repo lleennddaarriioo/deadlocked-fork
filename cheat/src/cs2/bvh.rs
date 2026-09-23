@@ -7,20 +7,56 @@ use crate::{cs2::CS2, parser::bvh::Triangle};
 const MAX_VECTOR_ITEMS: usize = 2_000_000;
 
 pub fn read_bvh(cs2: &CS2) -> Option<Vec<Triangle>> {
-    let world: usize = cs2.process.read(cs2.offsets.direct.vphys_world);
+    let mut world_ptr_addr = cs2.offsets.direct.vphys_world;
+    if world_ptr_addr == 0 {
+        return None;
+    }
+
+    let mut world: usize = cs2.process.read(world_ptr_addr);
     if world == 0 {
         return None;
     }
-    let inner: usize = cs2.process.read(world + 0x30);
+
+    // Determine if world is g_pVPhysWorld pointer or already CPhysWorld instance
+    let deref_world: usize = cs2.process.read(world);
+    if deref_world > 0x10000 {
+        let test_inner: usize = cs2.process.read(deref_world + 0x30);
+        if test_inner != 0 {
+            world = deref_world;
+        }
+    }
+
+    let inner: usize = [0x30, 0x28, 0x20, 0x18, 0x10, 0x38, 0x40, 0x00]
+        .iter()
+        .map(|&off| cs2.process.read::<usize>(world + off))
+        .find(|&ptr| ptr != 0 && (cs2.process.read::<usize>(ptr + 0x118) != 0 || cs2.process.read::<usize>(ptr + 0x110) != 0))
+        .unwrap_or_else(|| {
+            [0x30, 0x28, 0x20, 0x18, 0x10, 0x00].iter()
+                .map(|&off| cs2.process.read::<usize>(world + off))
+                .find(|&ptr| ptr != 0)
+                .unwrap_or(0)
+        });
+
     if inner == 0 {
+        utils::warn!("[bvh] inner world ptr is 0 (world_ptr={world_ptr_addr:#x}, world={world:#x})");
         return None;
     }
-    let bodies: usize = cs2.process.read(inner + 0x118);
+
+    let bodies: usize = match cs2.process.read::<usize>(inner + 0x118) {
+        0 => cs2.process.read::<usize>(inner + 0x110),
+        b => b,
+    };
     if bodies == 0 {
+        utils::warn!("[bvh] bodies ptr is 0");
         return None;
     }
-    let body_count: i32 = cs2.process.read(bodies + 0x268);
+
+    let body_count: i32 = match cs2.process.read::<i32>(bodies + 0x268) {
+        c if c > 0 && c as usize <= MAX_VECTOR_ITEMS => c,
+        _ => cs2.process.read::<i32>(bodies + 0x260),
+    };
     if body_count <= 0 || body_count as usize > MAX_VECTOR_ITEMS {
+        utils::warn!("[bvh] invalid body_count: {body_count}");
         return None;
     }
 
@@ -29,7 +65,8 @@ pub fn read_bvh(cs2: &CS2) -> Option<Vec<Triangle>> {
 
     for body_index in 0..body_count as usize {
         let body = bodies + body_index * 88;
-        if cs2.process.read::<u32>(body + 0x40) != 2 {
+        let flags: u32 = cs2.process.read(body + 0x40);
+        if flags != 2 && flags != 0 && flags != 1 {
             continue;
         }
 

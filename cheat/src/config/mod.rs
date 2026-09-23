@@ -109,13 +109,22 @@ pub fn parse_config(path: &Path) -> Config {
         return Config::default();
     };
 
-    let config = toml::from_str(&config_string);
-    if config.is_err() {
-        utils::warn!("config file invalid");
-    } else if let Some(file_name) = path.file_name() {
-        utils::info!("loaded config {:?}", file_name);
+    match toml::from_str::<Config>(&config_string) {
+        Ok(config) => {
+            if let Some(file_name) = path.file_name() {
+                utils::info!("loaded config {:?}", file_name);
+            }
+            config
+        }
+        Err(err) => {
+            utils::warn!("failed to parse config {:?}: {}", path, err);
+            // Create a backup of the invalid file so the user never loses their original config file
+            let backup_path = path.with_extension("toml.bak");
+            let _ = std::fs::copy(path, &backup_path);
+            utils::info!("saved backup of original config to {:?}", backup_path);
+            Config::default()
+        }
     }
-    config.unwrap_or_default()
 }
 
 pub fn write_config(config: &Config, path: &Path) {

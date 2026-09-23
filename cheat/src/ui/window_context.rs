@@ -229,13 +229,14 @@ impl Drop for WindowContext {
 fn prep_ctx(ctx: &egui::Context, accent_color: egui::Color32) {
     Font::install(ctx);
 
-    ctx.style_mut_of(egui::Theme::Dark, |style| {
-        gui_style(style, accent_color);
-    });
+    let mut style = (*ctx.style_of(egui::Theme::Dark)).clone();
+    gui_style(&mut style, accent_color);
+    ctx.set_style_of(egui::Theme::Dark, style.clone());
+    ctx.set_style_of(egui::Theme::Light, style);
 }
 
 fn gui_style(style: &mut Style, accent_color: egui::Color32) {
-    style.interaction.selectable_labels = false;
+    style.interaction.selectable_labels = true;
     for font in style.text_styles.iter_mut() {
         font.1.size = 16.0;
     }

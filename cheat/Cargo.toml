@@ -45,6 +45,7 @@ vpk = "0.3.0"
 egui_extras = { version = "0.36", features = ["image", "all_loaders"] }
 image = { version = "0.25", features = ["png"] }
 rayon = "1.10"
+egui_plot = "0.37.0"
 
 [features]
 read-only = []

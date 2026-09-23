@@ -109,8 +109,8 @@ impl AppState {
                 ui,
                 "Target TPS",
                 DragValue::new(&mut self.config.fps)
-                    .range(1..=self.max_monitor_hz)
-                    .speed(1.0),
+                    .range(1..=10000)
+                    .speed(5.0),
             ) {
                 self.send_config_game();
             }
@@ -489,7 +489,7 @@ impl AppState {
             if drag(
                 ui,
                 "FPS",
-                DragValue::new(&mut self.config.fps).range(1..=self.max_monitor_hz),
+                DragValue::new(&mut self.config.fps).range(1..=10000).speed(5.0),
             ) {
                 self.send_config_game();
             }

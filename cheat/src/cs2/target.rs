@@ -59,7 +59,7 @@ impl CS2 {
         let eye_position = local_player.eye_position(self);
 
         if let Some(player) = &self.target.player {
-            if !player.is_valid(self) || (aimbot_config.visibility_check && !player.is_visible_mode(self, &local_player, aimbot_config.visibility_mode)) {
+            if !player.is_valid(self) || (aimbot_config.visibility_check && !player.is_bone_visible(self, &local_player)) {
                 self.target.reset();
             }
         } else {
@@ -79,25 +79,20 @@ impl CS2 {
             }
 
             let is_vis = if aimbot_config.visibility_check {
-                match aimbot_config.visibility_mode {
-                    crate::config::aim::VisibilityMode::BoneFast => {
-                        if let Some(bvh) = &self.bvh {
-                            let mut visible = false;
-                            for bone in &aimbot_config.bones {
-                                let bone_pos = player.bone_position(self, bone.u64());
-                                if bvh.has_line_of_sight(eye_position, bone_pos) {
-                                    visible = true;
-                                    break;
-                                }
-                            }
-                            visible || player.visible(self, &local_player)
-                        } else {
-                            player.is_visible_mode(self, &local_player, aimbot_config.visibility_mode)
+                if let Some(bvh) = &self.bvh {
+                    let mut visible = false;
+                    let default_bones = [Bones::Head, Bones::Spine2];
+                    let target_bones = if aimbot_config.bones.is_empty() { &default_bones[..] } else { &aimbot_config.bones[..] };
+                    for bone in target_bones {
+                        let bone_pos = player.bone_position(self, bone.u64());
+                        if bvh.has_line_of_sight(eye_position, bone_pos) {
+                            visible = true;
+                            break;
                         }
                     }
-                    crate::config::aim::VisibilityMode::BoneLoS => {
-                        player.is_visible_mode(self, &local_player, aimbot_config.visibility_mode)
-                    }
+                    visible || player.visible(self, &local_player)
+                } else {
+                    player.is_bone_visible(self, &local_player)
                 }
             } else {
                 true
@@ -161,7 +156,9 @@ impl CS2 {
             let angle = self.angle_to_target(&local_player, &bone_position, &aim_punch);
             let fov = angles_to_fov(&view_angles, &angle);
 
-            if fov < smallest_fov {
+            let fov_limit = max_fov * self.distance_scale(distance);
+
+            if fov < smallest_fov && fov <= fov_limit {
                 smallest_fov = fov;
 
                 self.target.angle = angle;

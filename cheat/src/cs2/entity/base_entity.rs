@@ -66,24 +66,6 @@ impl BaseEntity {
         )
     }
 
-    pub fn collision_transform(&self, cs2: &CS2) -> Mat4 {
-        let node = self.game_scene_node(cs2);
-        if node == 0 {
-            return Mat4::IDENTITY;
-        }
-        let position: Vec3 = self.position(cs2);
-        let values: [f32; 4] = cs2
-            .process
-            .read(node + cs2.offsets.game_scene_node.node_to_world + 0x10);
-        let rotation = Quat::from_xyzw(values[0], values[1], values[2], values[3]);
-        let rotation = if rotation.is_finite() && rotation.length_squared() > f32::EPSILON {
-            rotation.normalize()
-        } else {
-            Quat::IDENTITY
-        };
-        Mat4::from_scale_rotation_translation(Vec3::ONE, rotation, position)
-    }
-
     #[allow(dead_code)]
     pub fn velocity(&self, cs2: &CS2) -> Vec3 {
         NetworkVelocityVector::read(cs2, self.handle + cs2.offsets.entity.velocity).to_vec()

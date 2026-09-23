@@ -201,7 +201,9 @@ impl GameManager {
                 }
 
                 let total_iter_dur = start.elapsed();
-                self.send_message(UiMessage::FrameTime(total_iter_dur));
+                let framecount = self.cs2.framecount();
+                let tickcount = self.cs2.tickcount();
+                self.send_message(UiMessage::FrameTime(total_iter_dur, framecount, tickcount));
             } else {
                 sleep(Duration::from_secs(5));
             }

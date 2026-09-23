@@ -29,24 +29,6 @@ impl WeaponConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, EnumIter)]
-pub enum VisibilityMode {
-    BoneLoS,
-    BoneFast,
-}
-
-impl std::fmt::Display for VisibilityMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                VisibilityMode::BoneLoS => "Bone LoS",
-                VisibilityMode::BoneFast => "Bone Fast",
-            }
-        )
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -58,10 +40,12 @@ pub struct AimbotConfig {
     pub distance_adjusted_fov: bool,
     pub start_bullet: i32,
     pub visibility_check: bool,
-    pub visibility_mode: VisibilityMode,
     pub flash_check: bool,
     pub fov: f32,
-    pub smooth: f32,
+    pub curve: Vec<Vec2>,
+    pub flick_mode: bool,
+    pub flick_speed: f32,
+    pub flick_curve: Vec<Vec2>,
     pub silent_aim: bool,
     pub inertia: f32,
     /// Seconds of target motion to lead when aiming.
@@ -82,10 +66,21 @@ impl Default for AimbotConfig {
             distance_adjusted_fov: true,
             start_bullet: 0,
             visibility_check: true,
-            visibility_mode: VisibilityMode::BoneLoS,
             flash_check: true,
             fov: 2.5,
-            smooth: 5.0,
+            curve: vec![
+                Vec2::new(0.0, 50.0), // Very smooth when directly on target (slows down to prevent overshooting)
+                Vec2::new(0.5, 10.0),
+                Vec2::new(1.0, 5.0),
+                Vec2::new(2.5, 1.0), // Fastest when far away from target
+            ],
+            flick_mode: false,
+            flick_speed: 45.45,
+            flick_curve: vec![
+                Vec2::new(0.0, 50.0),
+                Vec2::new(0.5, 5.0),
+                Vec2::new(2.5, 0.5),
+            ],
             silent_aim: false,
             inertia: 1.0,
             prediction_time: 0.05,
@@ -179,7 +174,6 @@ pub struct TriggerbotConfig {
     pub shot_duration: u64,
     pub mode: KeyMode,
     pub visibility_check: bool,
-    pub visibility_mode: VisibilityMode,
     pub flash_check: bool,
     pub scope_check: bool,
     pub velocity_check: bool,
@@ -200,7 +194,6 @@ impl Default for TriggerbotConfig {
             shot_duration: 200,
             mode: KeyMode::Hold,
             visibility_check: true,
-            visibility_mode: VisibilityMode::BoneLoS,
             flash_check: true,
             scope_check: true,
             velocity_check: true,

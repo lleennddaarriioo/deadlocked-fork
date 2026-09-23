@@ -113,6 +113,18 @@ impl AppState {
             );
         }
 
+        if !data.bvh_loaded && data.in_game {
+            let warning_pos = pos2(data.window_size.x - 16.0, 60.0);
+            self.text_sized(
+                &painter,
+                "\u{26a0} MAP BVH NOT LOADED",
+                warning_pos,
+                egui::Align2::RIGHT_TOP,
+                Color32::from_rgb(255, 180, 0),
+                16.0,
+            );
+        }
+
         self.grenade_manager(data, &painter);
     }
 

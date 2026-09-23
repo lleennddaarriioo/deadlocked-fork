@@ -235,12 +235,13 @@ impl AppState {
 
         let active_compute_ms: f32 = compute_slices.iter().map(|(_, _, ms, _)| *ms).sum();
         let target_frame_ms = if t.target_frame_ms > 0.0 { t.target_frame_ms } else { 1.0 };
+        let total_ms = target_frame_ms.max(active_compute_ms);
 
-        // Full slices including idle (total = target_frame_ms)
+        // Full slices including idle (total = total_ms)
         let full_slices: Vec<(&str, &str, f32, Color32)> = compute_slices
             .iter()
             .copied()
-            .chain(std::iter::once(("Idle (Sleep)", "System Wait", t.idle_ms.max(0.0), Color32::from_rgb(71, 85, 105))))
+            .chain(std::iter::once(("Idle (Sleep)", "System Wait", (target_frame_ms - active_compute_ms).max(0.0), Color32::from_rgb(71, 85, 105))))
             .collect();
 
         ui.horizontal(|ui| {
@@ -258,7 +259,7 @@ impl AppState {
             let mut start_angle = -std::f32::consts::FRAC_PI_2; // Start at 12 o'clock
 
             for &(_, _, ms, color) in &full_slices {
-                let slice_pct = (ms / target_frame_ms).clamp(0.0, 1.0);
+                let slice_pct = (ms / total_ms).clamp(0.0, 1.0);
                 if slice_pct <= 0.0001 {
                     continue;
                 }
@@ -287,7 +288,7 @@ impl AppState {
             painter.circle_filled(center, radius * 0.45, Color32::from_rgb(20, 20, 26));
             painter.circle_stroke(center, radius * 0.45, Stroke::new(1.0, Color32::from_white_alpha(30)));
 
-            let idle_pct = (t.idle_ms / target_frame_ms * 100.0).clamp(0.0, 100.0);
+            let idle_pct = ((target_frame_ms - active_compute_ms).max(0.0) / total_ms * 100.0).clamp(0.0, 100.0);
 
             // Numeric Breakdown Legend & Per-Thread Assignment
             ui.vertical(|ui| {
@@ -301,7 +302,7 @@ impl AppState {
                     .spacing(Vec2::new(16.0, 3.0))
                     .show(ui, |ui| {
                         for &(label, thread_tag, ms, color) in &full_slices {
-                            let pct = (ms / target_frame_ms * 100.0).clamp(0.0, 100.0);
+                            let pct = (ms / total_ms * 100.0).clamp(0.0, 100.0);
 
                             // Color badge
                             let (badge_rect, _) = ui.allocate_exact_size(Vec2::new(12.0, 12.0), egui::Sense::hover());

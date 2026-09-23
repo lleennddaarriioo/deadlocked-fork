@@ -7,77 +7,135 @@ use crate::WeaponClass;
 #[serde(rename_all = "snake_case")]
 pub enum Weapon {
     #[default]
+    #[serde(alias = "unknown", alias = "Unknown", alias = "none")]
     None,
 
     // pistols
+    #[serde(alias = "c_z75", alias = "cz75", alias = "cz_75")]
     CZ75,
+    #[serde(alias = "desert_eagle", alias = "deagle")]
     DesertEagle,
+    #[serde(alias = "dual_berettas", alias = "elite", alias = "dualies")]
     DualBerettas,
+    #[serde(alias = "five_seven", alias = "fiveseven")]
     FiveSeven,
+    #[serde(alias = "glock")]
     Glock,
+    #[serde(alias = "p2000", alias = "hkp2000")]
     P2000,
+    #[serde(alias = "p250")]
     P250,
+    #[serde(alias = "revolver", alias = "r8_revolver", alias = "r8")]
     Revolver,
+    #[serde(alias = "tec9", alias = "tec_9")]
     Tec9,
+    #[serde(alias = "usp", alias = "usp_silencer", alias = "usp_s")]
     Usp,
 
     // smg
+    #[serde(alias = "m_a_c10", alias = "mac10", alias = "mac_10")]
     MAC10,
+    #[serde(alias = "m_p5", alias = "mp5", alias = "mp5sd", alias = "mp5_sd")]
     MP5,
+    #[serde(alias = "m_p7", alias = "mp7")]
     MP7,
+    #[serde(alias = "m_p9", alias = "mp9")]
     MP9,
+    #[serde(alias = "p90", alias = "p_90")]
     P90,
+    #[serde(alias = "bizon")]
     Bizon,
+    #[serde(alias = "u_m_p45", alias = "ump45", alias = "ump_45")]
     UMP45,
 
     // shotguns
+    #[serde(alias = "mag7", alias = "mag_7")]
     Mag7,
+    #[serde(alias = "nova")]
     Nova,
+    #[serde(alias = "sawed_off", alias = "sawedoff")]
     SawedOff,
+    #[serde(alias = "x_m1014", alias = "xm1014")]
     XM1014,
 
     // lmg
+    #[serde(alias = "m249")]
     M249,
+    #[serde(alias = "negev")]
     Negev,
 
     // assault rifles
+    #[serde(alias = "a_k47", alias = "ak47", alias = "ak_47")]
     AK47,
+    #[serde(alias = "aug")]
     Aug,
+    #[serde(alias = "famas")]
     Famas,
+    #[serde(alias = "galil", alias = "galilar", alias = "galil_ar")]
     Galil,
+    #[serde(alias = "m4_a1_s", alias = "m4a1s", alias = "m4a1_s", alias = "m4a1_silencer")]
     M4A1S,
+    #[serde(alias = "m4_a4", alias = "m4a4")]
     M4A4,
+    #[serde(alias = "s_g553", alias = "sg553", alias = "sg556", alias = "sg_553")]
     SG553,
 
     // snipers
+    #[serde(alias = "awp")]
     Awp,
+    #[serde(alias = "g3_s_g1", alias = "g3sg1")]
     G3SG1,
+    #[serde(alias = "s_c_a_r20", alias = "scar20", alias = "scar_20")]
     SCAR20,
+    #[serde(alias = "s_s_g08", alias = "ssg08", alias = "ssg_08")]
     SSG08,
 
     // knives
+    #[serde(alias = "knife_c_t", alias = "knifect", alias = "knife_ct")]
     KnifeCT,
+    #[serde(alias = "knife_t", alias = "knifet")]
     KnifeT,
+    #[serde(alias = "knife_bayonet", alias = "bayonet")]
     KnifeBayonet,
+    #[serde(alias = "knife_bowie", alias = "bowie")]
     KnifeBowie,
+    #[serde(alias = "knife_butterfly", alias = "butterfly")]
     KnifeButterfly,
+    #[serde(alias = "knife_classic", alias = "classic")]
     KnifeClassic,
+    #[serde(alias = "knife_falchion", alias = "falchion")]
     KnifeFalchion,
+    #[serde(alias = "knife_flip", alias = "flip")]
     KnifeFlip,
+    #[serde(alias = "knife_gut", alias = "gut")]
     KnifeGut,
+    #[serde(alias = "knife_huntsman", alias = "huntsman")]
     KnifeHuntsman,
+    #[serde(alias = "knife_karambit", alias = "karambit")]
     KnifeKarambit,
+    #[serde(alias = "knife_kukri", alias = "kukri")]
     KnifeKukri,
+    #[serde(alias = "knife_m9_bayonet", alias = "m9_bayonet")]
     KnifeM9Bayonet,
+    #[serde(alias = "knife_navaja", alias = "navaja")]
     KnifeNavaja,
+    #[serde(alias = "knife_nomad", alias = "nomad")]
     KnifeNomad,
+    #[serde(alias = "knife_paracord", alias = "paracord")]
     KnifeParacord,
+    #[serde(alias = "knife_shadow_daggers", alias = "shadow_daggers")]
     KnifeShadowDaggers,
+    #[serde(alias = "knife_skeleton", alias = "skeleton")]
     KnifeSkeleton,
+    #[serde(alias = "knife_stiletto", alias = "stiletto")]
     KnifeStiletto,
+    #[serde(alias = "knife_survival", alias = "survival")]
     KnifeSurvival,
+    #[serde(alias = "knife_talon", alias = "talon")]
     KnifeTalon,
+    #[serde(alias = "knife_ursus", alias = "ursus")]
     KnifeUrsus,
+    #[serde(alias = "knife_gold", alias = "gold")]
     KnifeGold,
 
     // grenades

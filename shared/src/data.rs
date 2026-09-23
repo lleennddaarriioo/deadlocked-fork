@@ -56,6 +56,7 @@ pub struct OffscreenPlayerData {
     pub health: i32,
     pub team_is_friendly: bool,
     pub visible: bool,
+    pub is_onscreen: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

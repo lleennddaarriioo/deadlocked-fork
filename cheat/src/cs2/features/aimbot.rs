@@ -28,16 +28,20 @@ pub struct Aimbot {
     pub saved_angles: Option<Vec2>,
     pub silent_mouse_angles: Option<Vec2>,
     pub silent_target_angle: Option<Vec2>,
-    pub was_active: bool,
     pub silent_state: SilentAimState,
     pub silent_timer: Option<std::time::Instant>,
+    pub was_active: bool,
+    pub fractional_mouse: Vec2,
+    pub last_tick: Option<std::time::Instant>,
+    pub last_framecount: i32,
 }
 
 impl CS2 {
     pub fn aimbot(&mut self, config: &Config, mouse: &mut Mouse) -> bool {
         crate::profile_scope!("aimbot");
         let hotkey = config.aim.aimbot_hotkey;
-        let config = self.aimbot_config(config);
+        let global_config = config;
+        let config = self.aimbot_config(global_config);
 
         self.aim.is_locked = false;
         self.aim.current_target_fov = 360.0;
@@ -162,7 +166,14 @@ impl CS2 {
 
                     let alpha = 1.0 - config.inertia.clamp(0.0, 1.0) * 0.5;
                     self.aim.inertia += (mouse_angles - self.aim.inertia) * alpha;
-                    mouse.move_rel(self.aim.inertia);
+                    
+                    self.aim.fractional_mouse += self.aim.inertia;
+                    let move_x = self.aim.fractional_mouse.x.trunc();
+                    let move_y = self.aim.fractional_mouse.y.trunc();
+                    self.aim.fractional_mouse.x -= move_x;
+                    self.aim.fractional_mouse.y -= move_y;
+                    
+                    mouse.move_rel(vec2(move_x, move_y));
                     return true;
                 }
             }
@@ -198,12 +209,7 @@ impl CS2 {
             return false;
         }
 
-        let max_fov = config.fov
-            * if config.distance_adjusted_fov {
-                self.distance_scale(self.target.distance)
-            } else {
-                1.0
-            };
+        let max_fov = config.fov * self.distance_scale(self.target.distance);
 
         let mut best_bone_damage = None;
 
@@ -215,25 +221,20 @@ impl CS2 {
             let mut found_bone = false;
 
             let eye_pos = local_player.eye_position(self);
+            let default_bones = [Bones::Head, Bones::Spine2];
+            let aim_bones = if config.bones.is_empty() { &default_bones[..] } else { &config.bones[..] };
 
-            for bone in &config.bones {
+            for bone in aim_bones {
                 let bone_pos =
                     target.bone_position(self, bone.u64()) + target_velocity * prediction_time;
                 let dist_units = eye_pos.distance(bone_pos);
                 let dist_meters = dist_units * 0.0254;
 
                 let is_vis = if config.visibility_check {
-                    match config.visibility_mode {
-                        crate::config::aim::VisibilityMode::BoneFast => {
-                            if let Some(bvh) = &self.bvh {
-                                bvh.has_line_of_sight(eye_pos, bone_pos) || target.visible(self, &local_player)
-                            } else {
-                                target.visible(self, &local_player)
-                            }
-                        }
-                        crate::config::aim::VisibilityMode::BoneLoS => {
-                            target.visible(self, &local_player)
-                        }
+                    if let Some(bvh) = &self.bvh {
+                        bvh.has_line_of_sight(eye_pos, bone_pos) || target.visible(self, &local_player)
+                    } else {
+                        target.visible(self, &local_player)
                     }
                 } else {
                     true
@@ -264,14 +265,10 @@ impl CS2 {
                 let fov = angles_to_fov(&local_player.view_angles(self), &angle);
                 
                 if config.bone_mode == crate::config::aim::BoneMode::Priority {
-                    if fov <= max_fov {
-                        smallest_angle = angle;
-                        found_bone = true;
-                        best_bone_damage = Some((predicted_damage, base_damage * 4.0));
-                        break;
-                    } else {
-                        ::utils::info!("[aimbot miss] priority bone {:?} outside max_fov ({:.1} > {:.1})", bone, fov, max_fov);
-                    }
+                    smallest_angle = angle;
+                    found_bone = true;
+                    best_bone_damage = Some((predicted_damage, base_damage * 4.0));
+                    break;
                 } else {
                     if fov < smallest_fov {
                         smallest_fov = fov;
@@ -299,16 +296,21 @@ impl CS2 {
         self.aim.current_target_fov = current_fov;
         self.aim.is_locked = current_fov <= max_fov;
 
-        if current_fov > max_fov {
-            ::utils::info!("[aimbot miss] target angle outside FOV threshold ({:.1} > {:.1})", current_fov, max_fov);
-            return false;
-        }
-
         let mut aim_angles = view_angles - target_angle;
         if aim_angles.y < -180.0 {
             aim_angles.y += 360.0
         }
         vec2_clamp(&mut aim_angles);
+
+        let now = std::time::Instant::now();
+        let dt = if let Some(last) = self.aim.last_tick {
+            now.duration_since(last).as_secs_f32().min(0.1) // clamp to 100ms
+        } else {
+            1.0 / 64.0
+        };
+        self.aim.last_tick = Some(now);
+        
+        let framecount = self.framecount();
 
         let sensitivity = self.get_sensitivity() * local_player.fov_multiplier(self);
 
@@ -329,23 +331,116 @@ impl CS2 {
                 self.aim.silent_state = SilentAimState::FlickingToTarget;
                 self.aim.silent_timer = Some(std::time::Instant::now() + std::time::Duration::from_millis(15));
             }
-        } else if config.smooth < 1.0 {
-            let mouse_angles = vec2(
-                aim_angles.y / sensitivity * 45.45,
-                -aim_angles.x / sensitivity * 45.45,
-            );
-            self.aim.inertia = Vec2::ZERO;
-            mouse.move_rel(mouse_angles);
-        } else {
-            let smooth_factor = config.smooth + 1.0;
-            let mouse_angles = vec2(
-                aim_angles.y / sensitivity * 45.45,
-                -aim_angles.x / sensitivity * 45.45,
-            ) / smooth_factor;
+        } else if config.flick_mode {
+            let distance = aim_angles.length();
+            
+            // Sample the FLICK curve
+            let smooth_factor = if config.flick_curve.is_empty() {
+                config.flick_speed.max(1.0)
+            } else if config.flick_curve.len() == 1 {
+                config.flick_curve[0].y
+            } else {
+                let mut factor = config.flick_speed.max(1.0);
+                if distance <= config.flick_curve[0].x {
+                    factor = config.flick_curve[0].y;
+                } else if distance >= config.flick_curve.last().unwrap().x {
+                    factor = config.flick_curve.last().unwrap().y;
+                } else {
+                    for w in config.flick_curve.windows(2) {
+                        if distance >= w[0].x && distance <= w[1].x {
+                            let t = (distance - w[0].x) / (w[1].x - w[0].x);
+                            factor = w[0].y + (w[1].y - w[0].y) * t;
+                            break;
+                        }
+                    }
+                }
+                factor
+            }.max(1.0);
 
-            let alpha = 1.0 - config.inertia.clamp(0.0, 1.0) * 0.5;
-            self.aim.inertia += (mouse_angles - self.aim.inertia) * alpha;
-            mouse.move_rel(self.aim.inertia);
+            if smooth_factor <= 1.001 {
+                if framecount == self.aim.last_framecount {
+                    return false;
+                }
+                self.aim.last_framecount = framecount;
+            }
+
+            let fraction = if smooth_factor <= 1.001 {
+                1.0
+            } else {
+                let rate = 64.0 / smooth_factor;
+                1.0 - (-rate * dt).exp()
+            };
+
+            let mouse_angles = vec2(
+                aim_angles.y / sensitivity * 45.45,
+                -aim_angles.x / sensitivity * 45.45,
+            ) * fraction;
+
+            self.aim.fractional_mouse += mouse_angles;
+            let move_x = self.aim.fractional_mouse.x.trunc();
+            let move_y = self.aim.fractional_mouse.y.trunc();
+            self.aim.fractional_mouse.x -= move_x;
+            self.aim.fractional_mouse.y -= move_y;
+
+            if move_x != 0.0 || move_y != 0.0 {
+                ::utils::info!("[aimbot_debug] moving x: {:.2}, y: {:.2} | aim_angles: {:.2}, {:.2} | mouse_angles: {:.2}, {:.2} | fraction: {:.6}", move_x, move_y, aim_angles.x, aim_angles.y, mouse_angles.x, mouse_angles.y, fraction);
+            } else if framecount % 64 == 0 {
+                ::utils::info!("[aimbot_debug] stuck at 0! fraction: {:.6} | dt: {:.6} | mouse_angles: {:.2}, {:.2} | fractional: {:.2}, {:.2}", fraction, dt, mouse_angles.x, mouse_angles.y, self.aim.fractional_mouse.x, self.aim.fractional_mouse.y);
+            }
+
+            mouse.move_rel(vec2(move_x, move_y));
+        } else {
+            let distance = aim_angles.length();
+            
+            // Sample the curve
+            let smooth_factor = if config.curve.is_empty() {
+                1.0
+            } else if config.curve.len() == 1 {
+                config.curve[0].y
+            } else {
+                let mut factor = 1.0;
+                if distance <= config.curve[0].x {
+                    factor = config.curve[0].y;
+                } else if distance >= config.curve.last().unwrap().x {
+                    factor = config.curve.last().unwrap().y;
+                } else {
+                    for w in config.curve.windows(2) {
+                        if distance >= w[0].x && distance <= w[1].x {
+                            let t = (distance - w[0].x) / (w[1].x - w[0].x);
+                            factor = w[0].y + (w[1].y - w[0].y) * t;
+                            break;
+                        }
+                    }
+                }
+                factor
+            }.max(1.0);
+
+            if smooth_factor <= 1.001 {
+                if framecount == self.aim.last_framecount {
+                    return false;
+                }
+                self.aim.last_framecount = framecount;
+            }
+
+            let fraction = if smooth_factor <= 1.001 {
+                1.0
+            } else {
+                let rate = 64.0 / smooth_factor;
+                1.0 - (-rate * dt).exp()
+            };
+
+            let mouse_angles = vec2(
+                aim_angles.y / sensitivity * 45.45,
+                -aim_angles.x / sensitivity * 45.45,
+            ) * fraction;
+
+            self.aim.fractional_mouse += mouse_angles;
+            let move_x = self.aim.fractional_mouse.x.trunc();
+            let move_y = self.aim.fractional_mouse.y.trunc();
+            self.aim.fractional_mouse.x -= move_x;
+            self.aim.fractional_mouse.y -= move_y;
+
+            mouse.move_rel(vec2(move_x, move_y));
         }
 
         self.recoil.previous = local_player.aim_punch(self);

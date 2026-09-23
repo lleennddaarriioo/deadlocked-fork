@@ -41,6 +41,9 @@ pub struct AppState {
     pub trails: HashMap<usize, Trail>,
     pub player_sounds: HashMap<u64, (Instant, SoundType)>,
     pub frame_times: VecDeque<Duration>,
+    pub game_framecount: i32,
+    pub game_tickcount: i32,
+    pub last_rendered_framecount: i32,
 
     pub grenades: GrenadeList,
     pub new_grenade: Grenade,
@@ -56,6 +59,7 @@ pub struct AppState {
     pub current_tab: Tab,
     pub aimbot_tab: AimbotTab,
     pub aimbot_weapon: Weapon,
+    pub aimbot_show_curve: bool,
     
     pub hit_marker_time: Instant,
     pub last_total_damage: u32,
@@ -114,8 +118,11 @@ impl AppState {
         channel_radar: Channel<RadarMessage, RadarStatus>,
         data: Arc<Mutex<Data>>,
     ) -> Self {
-        let config = parse_config(&CONFIG_PATH.join(DEFAULT_CONFIG_NAME));
-        write_config(&config, &CONFIG_PATH.join(DEFAULT_CONFIG_NAME));
+        let default_cfg_path = CONFIG_PATH.join(DEFAULT_CONFIG_NAME);
+        let config = parse_config(&default_cfg_path);
+        if !default_cfg_path.exists() {
+            write_config(&config, &default_cfg_path);
+        }
         let grenades = read_grenades();
         let app_config = read_app_config();
         write_app_config(&app_config);
@@ -137,12 +144,16 @@ impl AppState {
             trails: HashMap::new(),
             player_sounds: HashMap::new(),
             frame_times: VecDeque::with_capacity(500),
+            game_framecount: 0,
+            game_tickcount: 0,
+            last_rendered_framecount: 0,
             grenades,
             new_grenade: Grenade::new(),
             current_grenade: None,
             current_tab: Tab::default(),
             aimbot_tab: AimbotTab::default(),
             aimbot_weapon: Weapon::default(),
+            aimbot_show_curve: false,
             
             hit_marker_time: Instant::now() - Duration::from_secs(10),
             last_total_damage: 0,
@@ -216,8 +227,8 @@ impl App {
     }
 
     fn frame_duration(&self) -> Duration {
-        let ui_fps = self.config.fps.min(self.max_monitor_hz).max(1);
-        Duration::from_secs_f32(1.0 / ui_fps as f32)
+        let ui_fps = self.config.fps.max(1);
+        Duration::from_secs_f64(1.0 / ui_fps as f64)
     }
 
     pub fn detect_highest_monitor_hz(event_loop: &winit::event_loop::ActiveEventLoop) -> u32 {
@@ -244,18 +255,45 @@ impl App {
 
 impl ApplicationHandler for App {
     fn new_events(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, cause: StartCause) {
-        if let StartCause::ResumeTimeReached { .. } = cause {
-            self.next_frame_time += self.frame_duration();
-
-            let now = Instant::now();
-            if self.next_frame_time < now {
-                self.next_frame_time = now + self.frame_duration();
+        if let StartCause::ResumeTimeReached { .. } | StartCause::Poll = cause {
+            // Check for new messages from the game loop
+            while let Ok(message) = self.state.channel_game.try_receive() {
+                match message {
+                    UiMessage::Status(status) => self.state.game_status = status,
+                    UiMessage::FrameTime(time, framecount, tickcount) => {
+                        if self.state.frame_times.len() >= 500 {
+                            self.state.frame_times.pop_front();
+                        }
+                        self.state.frame_times.push_back(time);
+                        self.state.game_framecount = framecount;
+                        self.state.game_tickcount = tickcount;
+                    }
+                }
+            }
+            while let Ok(message) = self.state.channel_radar.try_receive() {
+                self.state.radar_status = message;
             }
 
-            self.render();
+            let now = Instant::now();
+            let mut should_render = false;
+
+            if self.state.game_framecount != self.state.last_rendered_framecount {
+                should_render = true;
+                self.state.last_rendered_framecount = self.state.game_framecount;
+            }
+            
+            // Fallback: Always render if the normal frame duration has passed, to prevent GUI soft-locking
+            if self.next_frame_time <= now {
+                should_render = true;
+            }
+
+            if should_render {
+                self.next_frame_time = now + self.frame_duration();
+                self.render();
+            }
 
             event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
-                self.next_frame_time,
+                now + Duration::from_millis(1),
             ));
         }
     }
@@ -277,21 +315,6 @@ impl ApplicationHandler for App {
         window_id: winit::window::WindowId,
         window_event: WindowEvent,
     ) {
-        while let Ok(message) = self.state.channel_game.try_receive() {
-            match message {
-                UiMessage::Status(status) => self.state.game_status = status,
-                UiMessage::FrameTime(time) => {
-                    if self.state.frame_times.len() >= 500 {
-                        self.state.frame_times.pop_front();
-                    }
-                    self.state.frame_times.push_back(time);
-                }
-            }
-        }
-
-        while let Ok(message) = self.state.channel_radar.try_receive() {
-            self.state.radar_status = message;
-        }
 
         let Some(gui) = &self.gui else {
             return;

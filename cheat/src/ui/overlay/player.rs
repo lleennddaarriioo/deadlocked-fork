@@ -484,23 +484,24 @@ impl AppState {
         if !self.config.player.head_circle {
             return;
         }
-        let Some(neck) = player.bones.get(&Bones::Neck) else {
+        let Some(head_3d) = player.bones.get(&Bones::Head) else {
             return;
         };
-        let Some(spine) = player.bones.get(&Bones::Spine3) else {
-            return;
-        };
-
-        let Some(neck) = world_to_screen(neck, data) else {
-            return;
-        };
-        let Some(spine) = world_to_screen(spine, data) else {
+        let Some(head_2d) = world_to_screen(head_3d, data) else {
             return;
         };
 
-        let height = spine.y - neck.y;
-        let pos = pos2(neck.x - (spine.x - neck.x) / 2.0, neck.y - height / 2.0);
-        painter.circle_stroke(pos, height / 2.0, stroke);
+        let radius = if let Some(neck_3d) = player.bones.get(&Bones::Neck) {
+            if let Some(neck_2d) = world_to_screen(neck_3d, data) {
+                (head_2d.distance(neck_2d) * 0.85).clamp(4.0, 30.0)
+            } else {
+                8.0
+            }
+        } else {
+            8.0
+        };
+
+        painter.circle_stroke(head_2d, radius, stroke);
     }
 
     fn chams(&self, painter: &Painter, player: &PlayerData, data: &Data, alpha: Option<f32>) {
@@ -519,19 +520,18 @@ impl AppState {
             c
         };
 
-        // Project top (head + padding) and bottom (feet) to screen
+        if player.chams_segments.is_empty() { return; }
+
         let midpoint = (player.position + player.head) / 2.0;
-        let height = player.head.z - player.position.z + 24.0;
+        let height = (player.head.z - player.position.z).abs() + 24.0;
         let half_height = height / 2.0;
         let top_3d = midpoint + vec3(0.0, 0.0, half_height);
         let bottom_3d = midpoint - vec3(0.0, 0.0, half_height);
 
-        let Some(top) = world_to_screen(&top_3d, data) else { return };
-        let Some(bottom) = world_to_screen(&bottom_3d, data) else { return };
-
-        let box_h = (bottom.y - top.y).abs();
-        if box_h < 2.0 { return; }
-        if player.chams_segments.is_empty() { return; }
+        let box_h = match (world_to_screen(&top_3d, data), world_to_screen(&bottom_3d, data)) {
+            (Some(top), Some(bottom)) => (bottom.y - top.y).abs().max(10.0),
+            _ => 60.0,
+        };
 
         for &(start_3d, end_3d, is_vis, thickness_mult) in &player.chams_segments {
             if let (Some(start_2d), Some(end_2d)) = (world_to_screen(&start_3d, data), world_to_screen(&end_3d, data)) {
@@ -590,11 +590,11 @@ impl AppState {
         player: &PlayerData,
         data: &Data,
     ) -> Option<(Pos2, Pos2, Pos2, Pos2)> {
-        let min = player.collision_mins;
-        let max = player.collision_maxs;
-        if !min.is_finite() || !max.is_finite() || min.cmpgt(max).any() || min == max {
-            return None;
-        }
+        let (min, max) = if !player.collision_mins.is_finite() || !player.collision_maxs.is_finite() || player.collision_mins.cmpgt(player.collision_maxs).any() || player.collision_mins == player.collision_maxs {
+            (glam::Vec3::new(-16.0, -16.0, 0.0), glam::Vec3::new(16.0, 16.0, 72.0))
+        } else {
+            (player.collision_mins, player.collision_maxs)
+        };
         const SAMPLES: usize = CYLINDER_SAMPLES;
         let center = (min + max) * 0.5;
         let radius = 0.5 * (max.x - min.x).abs().max((max.y - min.y).abs());

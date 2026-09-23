@@ -604,6 +604,10 @@ impl AppState {
         let s = self.config.player.offscreen.size;
 
         for player in &data.offscreen_players {
+            if self.config.player.offscreen.hide_when_onscreen && player.is_onscreen {
+                continue;
+            }
+
             let angle = -player.angle_rad - std::f32::consts::FRAC_PI_2;
             let tip = pos2(center.x + r * angle.cos(), center.y + r * angle.sin());
 

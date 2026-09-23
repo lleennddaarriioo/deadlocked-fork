@@ -375,6 +375,13 @@ impl Player {
             .read(*self.pawn + cs2.offsets.pawn.eye_angles + 0x04)
     }
 
+    pub fn collision_transform(&self, cs2: &CS2) -> glam::Mat4 {
+        let position = self.position(cs2);
+        let rot_deg = self.rotation(cs2);
+        let rotation = glam::Quat::from_rotation_z(rot_deg.to_radians());
+        glam::Mat4::from_scale_rotation_translation(glam::Vec3::ONE, rotation, position)
+    }
+
     pub fn view_angles(&self, cs2: &CS2) -> Vec2 {
         cs2.process.read(*self.pawn + cs2.offsets.pawn.view_angles)
     }
@@ -480,42 +487,26 @@ impl Player {
     }
 
     pub fn is_bone_visible(&self, cs2: &CS2, local_player: &Player) -> bool {
-        self.visible(cs2, local_player)
-    }
-
-    pub fn is_visible_mode(
-        &self,
-        cs2: &CS2,
-        local_player: &Player,
-        mode: crate::config::aim::VisibilityMode,
-    ) -> bool {
-        match mode {
-            crate::config::aim::VisibilityMode::BoneFast => {
-                if let Some(bvh) = &cs2.bvh {
-                    let eye_pos = local_player.eye_position(cs2);
-                    const CHECKED_BONES: [Bones; 9] = [
-                        Bones::Head,
-                        Bones::Neck,
-                        Bones::Spine4,
-                        Bones::Spine2,
-                        Bones::Hip,
-                        Bones::LeftFoot,
-                        Bones::RightFoot,
-                        Bones::LeftHand,
-                        Bones::RightHand,
-                    ];
-                    let bvh_vis = CHECKED_BONES
-                        .iter()
-                        .any(|bone| bvh.has_line_of_sight(eye_pos, self.bone_position(cs2, bone.u64())));
-                    
-                    bvh_vis || self.visible(cs2, local_player)
-                } else {
-                    self.visible(cs2, local_player)
-                }
-            }
-            crate::config::aim::VisibilityMode::BoneLoS => {
-                self.visible(cs2, local_player)
-            }
+        if let Some(bvh) = &cs2.bvh {
+            let eye_pos = local_player.eye_position(cs2);
+            const CHECKED_BONES: [Bones; 9] = [
+                Bones::Head,
+                Bones::Neck,
+                Bones::Spine4,
+                Bones::Spine2,
+                Bones::Hip,
+                Bones::LeftFoot,
+                Bones::RightFoot,
+                Bones::LeftHand,
+                Bones::RightHand,
+            ];
+            let bvh_vis = CHECKED_BONES
+                .iter()
+                .any(|bone| bvh.has_line_of_sight(eye_pos, self.bone_position(cs2, bone.u64())));
+            
+            bvh_vis || self.visible(cs2, local_player)
+        } else {
+            self.visible(cs2, local_player)
         }
     }
 

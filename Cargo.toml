@@ -3,9 +3,11 @@ members = ["cheat", "server", "shared"]
 resolver = "3"
 
 [profile.release]
+opt-level = 3
 codegen-units = 1
-lto = true
+lto = "fat"
 strip = true
+panic = "abort"
 
 [workspace.dependencies]
 shared.path = "shared"
@@ -22,4 +24,7 @@ url = "2.5"
 uuid = { version = "1.26", features = ["v4", "serde"] }
 
 [profile.dev]
+opt-level = 0
+debug = false
+incremental = true
 overflow-checks = false

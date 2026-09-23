@@ -81,7 +81,7 @@ impl CS2 {
 
         // Check visibility / line of sight
         let bone_pos = player.bone_position(self, target_bone.u64());
-        let is_visible = player.is_visible_mode(self, &local_player, config.visibility_mode);
+        let is_visible = player.is_bone_visible(self, &local_player);
 
         if !is_visible && config.visibility_check {
             return;
@@ -224,7 +224,7 @@ impl CS2 {
         }
 
         let bone_pos = player.bone_position(self, target_bone.u64());
-        let is_visible = player.is_visible_mode(self, &local_player, config_trigger.visibility_mode);
+        let is_visible = player.is_bone_visible(self, &local_player);
 
         if !is_visible && config_trigger.visibility_check {
             return;
@@ -291,7 +291,7 @@ impl CS2 {
     fn get_triggerbot_target(&self, config: &crate::config::aim::TriggerbotConfig, local_player: &Player, aim_punch: &Vec2) -> Option<(Player, Bones, bool)> {
         if let Some(player) = local_player.crosshair_entity(self) {
             let target_bone = if config.head_only { Bones::Head } else { Bones::Spine2 };
-            let is_visible = player.is_visible_mode(self, local_player, config.visibility_mode);
+            let is_visible = player.is_bone_visible(self, local_player);
 
             if is_visible || !config.visibility_check {
                 return Some((player, target_bone, false));
@@ -331,9 +331,7 @@ impl CS2 {
                         p.visible(self, local_player)
                     };
 
-                    let is_vis = match config.visibility_mode {
-                        crate::config::aim::VisibilityMode::BoneLoS | crate::config::aim::VisibilityMode::BoneFast => bone_vis,
-                    };
+                    let is_vis = bone_vis;
 
                     if !is_vis {
                         continue;
