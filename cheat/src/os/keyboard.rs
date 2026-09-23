@@ -89,7 +89,7 @@ const KEY_SPACE: u16 = 57;
 const KEY_END: u16 = 107;
 
 pub struct Keyboard {
-    file: File,
+    file: Option<File>,
     physical_fds: Vec<File>,
     w_pressed: bool,
     s_pressed: bool,
@@ -119,31 +119,33 @@ impl Keyboard {
         if CREATED.swap(true, Ordering::Relaxed) {
             return Err("keyboard already initialized".into());
         }
-        let file = File::options()
-            .write(true)
-            .open("/dev/uinput")
-            .map_err(|e| e.to_string())?;
-        let fd = file.as_raw_fd();
+        let file = match File::options().write(true).open("/dev/uinput") {
+            Ok(f) => {
+                let fd = f.as_raw_fd();
+                unsafe {
+                    let _ = ui_set_evbit(fd, EV_SYN as u64);
+                    let _ = ui_set_evbit(fd, EV_KEY as u64);
 
-        unsafe {
-            ui_set_evbit(fd, EV_SYN as u64).map_err(|e| e.to_string())?;
-            ui_set_evbit(fd, EV_KEY as u64).map_err(|e| e.to_string())?;
+                    let _ = ui_set_keybit(fd, KEY_W as u64);
+                    let _ = ui_set_keybit(fd, KEY_S as u64);
+                    let _ = ui_set_keybit(fd, KEY_A as u64);
+                    let _ = ui_set_keybit(fd, KEY_D as u64);
+                    let _ = ui_set_keybit(fd, KEY_P as u64);
+                    let _ = ui_set_keybit(fd, KEY_O as u64);
+                    let _ = ui_set_keybit(fd, KEY_SPACE as u64);
+                    let _ = ui_set_keybit(fd, KEY_END as u64);
 
-            ui_set_keybit(fd, KEY_W as u64).map_err(|e| e.to_string())?;
-            ui_set_keybit(fd, KEY_S as u64).map_err(|e| e.to_string())?;
-            ui_set_keybit(fd, KEY_A as u64).map_err(|e| e.to_string())?;
-            ui_set_keybit(fd, KEY_D as u64).map_err(|e| e.to_string())?;
-            ui_set_keybit(fd, KEY_P as u64).map_err(|e| e.to_string())?;
-            ui_set_keybit(fd, KEY_O as u64).map_err(|e| e.to_string())?;
-            ui_set_keybit(fd, KEY_SPACE as u64).map_err(|e| e.to_string())?;
-            ui_set_keybit(fd, KEY_END as u64).map_err(|e| e.to_string())?;
-
-            ui_dev_setup(fd, &DEVICE_SETUP).map_err(|e| e.to_string())?;
-            ui_dev_create(fd).map_err(|e| e.to_string())?;
-        }
-
-        // Wait 100ms for uinput virtual device node registration to complete in kernel
-        std::thread::sleep(std::time::Duration::from_millis(100));
+                    let _ = ui_dev_setup(fd, &DEVICE_SETUP);
+                    let _ = ui_dev_create(fd);
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                Some(f)
+            }
+            Err(e) => {
+                utils::warn!("could not open /dev/uinput for keyboard simulation ({e}); keyboard input simulation disabled!");
+                None
+            }
+        };
 
         // Open physical /dev/input/event* devices (strictly excluding virtual uinput/ti-84 devices)
         let mut physical_fds = Vec::new();
@@ -408,15 +410,19 @@ impl Keyboard {
         };
 
         if state_changed {
-            self.file.write_all(&press.bytes()).unwrap();
-            self.file.write_all(&syn.bytes()).unwrap();
+            if let Some(file) = &mut self.file {
+                let _ = file.write_all(&press.bytes());
+                let _ = file.write_all(&syn.bytes());
+            }
         }
     }
 }
 
 impl Drop for Keyboard {
     fn drop(&mut self) {
-        let _ = unsafe { ui_dev_destroy(self.file.as_raw_fd()) };
+        if let Some(file) = &self.file {
+            let _ = unsafe { ui_dev_destroy(file.as_raw_fd()) };
+        }
         CREATED.store(false, Ordering::Relaxed);
     }
 }

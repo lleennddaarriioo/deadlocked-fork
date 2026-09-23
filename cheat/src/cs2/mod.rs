@@ -48,8 +48,8 @@ mod target;
 
 pub struct CS2 {
     is_valid: bool,
-    process: Process,
-    offsets: Offsets,
+    pub(crate) process: Process,
+    pub(crate) offsets: Offsets,
     input: Input,
     bvh: Option<Bvh>,
     current_bvh: String,
@@ -152,27 +152,29 @@ impl CS2 {
         }
 
         let t_other_features_start = Instant::now();
-        for entity in &self.entities {
-            if let Entity::Smoke(smoke) = entity {
-                if config.misc.no_smoke {
-                    smoke.disable(self);
-                }
+        if !config.visuals_only_mode {
+            for entity in &self.entities {
+                if let Entity::Smoke(smoke) = entity {
+                    if config.misc.no_smoke {
+                        smoke.disable(self);
+                    }
 
-                if config.misc.change_smoke_color {
-                    smoke.color(self, &config.misc.smoke_color);
+                    if config.misc.change_smoke_color {
+                        smoke.color(self, &config.misc.smoke_color);
+                    }
                 }
             }
-        }
 
-        self.no_flash(config);
-        self.fov_changer(config);
+            self.no_flash(config);
+            self.fov_changer(config);
+        }
 
         self.esp_toggle(config);
         let t_other_features_val = t_other_features_start.elapsed().as_secs_f32() * 1000.0;
 
         let trigger_interval_sec = if config.trigger_tps == 0 { 0.0 } else { 1.0 / config.trigger_tps.max(1) as f64 };
         let mut t_trigger_val = 0.0;
-        if self.last_trigger.elapsed().as_secs_f64() >= trigger_interval_sec {
+        if !config.visuals_only_mode && self.last_trigger.elapsed().as_secs_f64() >= trigger_interval_sec {
             let t_trigger_start = Instant::now();
             self.triggerbot(config);
             self.auto_pistol(config);
@@ -190,7 +192,7 @@ impl CS2 {
         let bhop_interval_sec = if config.bhop_tps == 0 { 0.0 } else { 1.0 / config.bhop_tps.max(1) as f64 };
         let mut t_bhop_val = 0.0;
         let mut t_counter_strafe_val = 0.0;
-        if self.last_bhop.elapsed().as_secs_f64() >= bhop_interval_sec {
+        if !config.visuals_only_mode && self.last_bhop.elapsed().as_secs_f64() >= bhop_interval_sec {
             if let Some(local_player) = Player::local_player(self) {
                 let t_bhop_start = Instant::now();
                 self.bhop.run(
@@ -351,7 +353,7 @@ impl CS2 {
         let mut t_aim_val = 0.0;
         let mut t_rcs_val = 0.0;
 
-        if self.last_aimbot.elapsed().as_secs_f64() >= aimbot_interval_sec {
+        if !config.visuals_only_mode && self.last_aimbot.elapsed().as_secs_f64() >= aimbot_interval_sec {
             let t_aim_start = Instant::now();
             let aimbot_ran = self.aimbot(config, mouse);
             t_aim_val = t_aim_start.elapsed().as_secs_f32() * 1000.0;
@@ -1106,25 +1108,21 @@ impl CS2 {
 
     fn check_bvh(&mut self) {
         crate::profile_scope!("check_bvh");
-        let current_map = self.current_map();
+        let mut current_map = self.current_map();
         if current_map.is_empty() || current_map == "<empty>" {
-            if !self.current_bvh.is_empty() {
-                self.current_bvh.clear();
-                self.bvh = None;
-            }
-            return;
+            current_map = "active_map".to_string();
         }
 
         if current_map != self.current_bvh {
             // Map changed or not loaded yet.
-            // Wait for local player pawn to ensure map physics are fully loaded in memory.
             if Player::local_player(self).is_none() {
                 return;
             }
 
+            utils::info!("[bvh] Attempting to load BVH map geometry for map '{current_map}'...");
             if let Some(bvh) = read_map(self) {
                 self.current_bvh = current_map.clone();
-                utils::info!("Loaded bvh for {current_map}");
+                utils::info!("Loaded bvh for {current_map} (triangles: {})", bvh.all_triangles().len());
 
                 // generate walls json for radar
                 let mut lines: Vec<i32> = Vec::new();
@@ -1174,7 +1172,7 @@ impl CS2 {
             }
 
             if let Some(bvh) = read_map(self) {
-                utils::info!("Loaded bvh for {current_map}");
+                utils::info!("Loaded bvh for {current_map} (triangles: {})", bvh.all_triangles().len());
 
                 // generate walls json for radar
                 let mut lines: Vec<i32> = Vec::new();

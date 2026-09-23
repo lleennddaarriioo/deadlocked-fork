@@ -36,6 +36,24 @@ impl AppState {
                     );
                 }
             }
+
+            ui.add_space(8.0);
+            ui.separator();
+            ui.add_space(8.0);
+
+            ui.heading("Flag Bypass Mode");
+            ui.label("Disables all memory writes, aimbot, triggerbot, bhop, & input simulation.");
+            ui.label("Only renders ESP overlay, 3D sound ESP, radar, & visual indicators.");
+            ui.add_space(4.0);
+            if ui
+                .checkbox(
+                    &mut self.config.visuals_only_mode,
+                    "Enable Flag Bypass Mode (ESP & Visuals Only)",
+                )
+                .changed()
+            {
+                self.send_config();
+            }
         });
     }
 }

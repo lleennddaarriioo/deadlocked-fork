@@ -68,22 +68,15 @@ pub struct GameManager {
 
 impl GameManager {
     pub fn new(channel: Channel<UiMessage, GameMessage>, data: Arc<Mutex<Data>>) -> Self {
-        let mouse = match Mouse::open() {
-            Ok(mouse) => mouse,
-            Err(err) => {
-                utils::error!("error creating uinput device: {err}");
-                utils::error!("uinput kernel module is not loaded, or user is not in input group.");
-                std::process::exit(1);
-            }
-        };
+        let mouse = Mouse::open().unwrap_or_else(|err| {
+            utils::warn!("mouse uinput warning: {err}");
+            Mouse::open().unwrap()
+        });
 
-        let keyboard = match Keyboard::open() {
-            Ok(keyboard) => keyboard,
-            Err(err) => {
-                utils::error!("error creating uinput keyboard device: {err}");
-                std::process::exit(1);
-            }
-        };
+        let keyboard = Keyboard::open().unwrap_or_else(|err| {
+            utils::warn!("keyboard uinput warning: {err}");
+            Keyboard::open().unwrap()
+        });
 
         Self {
             channel,

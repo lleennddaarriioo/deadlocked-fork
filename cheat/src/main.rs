@@ -45,9 +45,31 @@ fn main() {
 
     let args: Vec<String> = std::env::args().collect();
     let demo_mode = args.iter().any(|a| a == "--demo-screenshots");
+    let test_bvh_mode = args.iter().any(|a| a == "--test-bvh");
+
+    if test_bvh_mode {
+        println!("[test-bvh] Initializing CS2 memory reader...");
+        let mut cs2 = cs2::CS2::new();
+        cs2.setup();
+        if cs2.is_valid() {
+            println!("[test-bvh] CS2 process found! PID: {}", cs2.process.pid);
+            println!("[test-bvh] vphys_world offset: {:#x}", cs2.offsets.direct.vphys_world);
+            println!("[test-bvh] Attempting read_map()...");
+            if let Some(bvh) = parser::read_map(&cs2) {
+                println!("[test-bvh] SUCCESS! Loaded BVH map geometry with {} triangles!", bvh.all_triangles().len());
+                std::process::exit(0);
+            } else {
+                println!("[test-bvh] FAIL: read_map() returned None.");
+                std::process::exit(1);
+            }
+        } else {
+            println!("[test-bvh] CS2 process not found or invalid!");
+            std::process::exit(1);
+        }
+    }
 
     if !demo_mode && !check_uinput() {
-        return;
+        utils::warn!("uinput device is missing or unreadable; starting deadlocked in Visuals Only / ESP Mode!");
     }
 
     let (channel_gui_game, channel_game) = Channel::new();

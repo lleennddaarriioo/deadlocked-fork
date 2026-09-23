@@ -7,56 +7,55 @@ use crate::{cs2::CS2, parser::bvh::Triangle};
 const MAX_VECTOR_ITEMS: usize = 2_000_000;
 
 pub fn read_bvh(cs2: &CS2) -> Option<Vec<Triangle>> {
-    let mut world_ptr_addr = cs2.offsets.direct.vphys_world;
+    let world_ptr_addr = cs2.offsets.direct.vphys_world;
     if world_ptr_addr == 0 {
         return None;
     }
 
-    let mut world: usize = cs2.process.read(world_ptr_addr);
-    if world == 0 {
+    let world: usize = cs2.process.read(world_ptr_addr);
+    if world == 0 || world < 0x10000 {
         return None;
     }
 
-    // Determine if world is g_pVPhysWorld pointer or already CPhysWorld instance
-    let deref_world: usize = cs2.process.read(world);
-    if deref_world > 0x10000 {
-        let test_inner: usize = cs2.process.read(deref_world + 0x30);
-        if test_inner != 0 {
-            world = deref_world;
-        }
-    }
-
-    let inner: usize = [0x30, 0x28, 0x20, 0x18, 0x10, 0x38, 0x40, 0x00]
+    // `world` is the CPhysWorld heap instance.
+    // Check inner pointers or bodies vector inside `world`
+    let inner: usize = [0x30, 0x28, 0x20, 0x18, 0x10, 0x38, 0x40, 0x48, 0x50, 0xe0, 0xe8, 0xf0, 0x00]
         .iter()
         .map(|&off| cs2.process.read::<usize>(world + off))
-        .find(|&ptr| ptr != 0 && (cs2.process.read::<usize>(ptr + 0x118) != 0 || cs2.process.read::<usize>(ptr + 0x110) != 0))
+        .find(|&ptr| ptr > 0x10000 && ptr % 8 == 0 && [0x118, 0x110, 0x120, 0x108, 0x128, 0x100, 0x158, 0x188, 0x2c8, 0x270, 0x1d8, 0x2b8, 0x268].iter().any(|&boff| {
+            let c: i32 = cs2.process.read(ptr + boff);
+            c > 0 && c as usize <= MAX_VECTOR_ITEMS
+        }))
+        .unwrap_or(world); // If no sub-inner ptr, bodies vector is directly on world
+
+    let (bodies, body_count) = [0x118, 0x110, 0x120, 0x108, 0x128, 0x100, 0x158, 0x188, 0x2c8, 0x270, 0x1d8, 0x2b8, 0x268, 0x260, 0x278, 0x280]
+        .iter()
+        .find_map(|&off| {
+            let b: usize = cs2.process.read(inner + off);
+            if b > 0x10000 && b % 8 == 0 {
+                let c: i32 = [0x268, 0x260, 0x270, 0x258, 0x278, 0x280, 0x08, 0x10]
+                    .iter()
+                    .map(|&coff| cs2.process.read::<i32>(b + coff))
+                    .find(|&c| c > 0 && c as usize <= MAX_VECTOR_ITEMS)
+                    .unwrap_or(0);
+                if c > 0 {
+                    return Some((b, c));
+                }
+            }
+            None
+        })
         .unwrap_or_else(|| {
-            [0x30, 0x28, 0x20, 0x18, 0x10, 0x00].iter()
-                .map(|&off| cs2.process.read::<usize>(world + off))
-                .find(|&ptr| ptr != 0)
-                .unwrap_or(0)
+            // Check if inner itself has count
+            let c: i32 = [0x268, 0x260, 0x270, 0x258, 0x278, 0x280]
+                .iter()
+                .map(|&coff| cs2.process.read::<i32>(inner + coff))
+                .find(|&c| c > 0 && c as usize <= MAX_VECTOR_ITEMS)
+                .unwrap_or(0);
+            (inner, c)
         });
 
-    if inner == 0 {
-        utils::warn!("[bvh] inner world ptr is 0 (world_ptr={world_ptr_addr:#x}, world={world:#x})");
-        return None;
-    }
-
-    let bodies: usize = match cs2.process.read::<usize>(inner + 0x118) {
-        0 => cs2.process.read::<usize>(inner + 0x110),
-        b => b,
-    };
-    if bodies == 0 {
-        utils::warn!("[bvh] bodies ptr is 0");
-        return None;
-    }
-
-    let body_count: i32 = match cs2.process.read::<i32>(bodies + 0x268) {
-        c if c > 0 && c as usize <= MAX_VECTOR_ITEMS => c,
-        _ => cs2.process.read::<i32>(bodies + 0x260),
-    };
-    if body_count <= 0 || body_count as usize > MAX_VECTOR_ITEMS {
-        utils::warn!("[bvh] invalid body_count: {body_count}");
+    if bodies == 0 || body_count <= 0 || body_count as usize > MAX_VECTOR_ITEMS {
+        utils::warn!("[bvh] invalid bodies ({bodies:#x}) or body_count ({body_count})");
         return None;
     }
 

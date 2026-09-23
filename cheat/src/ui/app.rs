@@ -297,11 +297,13 @@ impl App {
         while let Ok(message) = self.state.channel_game.try_receive() {
             match message {
                 UiMessage::Status(status) => self.state.game_status = status,
-                UiMessage::FrameTime(time) => {
+                UiMessage::FrameTime(time, framecount, tickcount) => {
                     if self.state.frame_times.len() >= 500 {
                         self.state.frame_times.pop_front();
                     }
                     self.state.frame_times.push_back(time);
+                    self.state.game_framecount = framecount;
+                    self.state.game_tickcount = tickcount;
                 }
             }
         }
@@ -314,24 +316,7 @@ impl App {
 impl ApplicationHandler for App {
     fn new_events(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, cause: StartCause) {
         if let StartCause::ResumeTimeReached { .. } | StartCause::Poll = cause {
-            // Check for new messages from the game loop
-            while let Ok(message) = self.state.channel_game.try_receive() {
-                match message {
-                    UiMessage::Status(status) => self.state.game_status = status,
-                    UiMessage::FrameTime(time, framecount, tickcount) => {
-                        if self.state.frame_times.len() >= 500 {
-                            self.state.frame_times.pop_front();
-                        }
-                        self.state.frame_times.push_back(time);
-                        self.state.game_framecount = framecount;
-                        self.state.game_tickcount = tickcount;
-                    }
-                }
-            }
-            while let Ok(message) = self.state.channel_radar.try_receive() {
-                self.state.radar_status = message;
-            }
-
+            let now = Instant::now();
             self.receive_events();
             self.render_overlay();
 

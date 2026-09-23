@@ -47,6 +47,10 @@ You only need to do this once, even when updating to newer versions.
 The binary will refuse to start if setup hasn't been completed.
 Also make sure the `uinput` kernel module is loaded.
 
+> [!TIP]
+> **Flag Bypass / Visuals Only Fallback Mode:**
+> If `/dev/uinput` is missing, unreadable, or kernel modules were recently updated without rebooting, `deadlocked` will automatically boot in **Visuals Only / ESP Mode**. In this mode, all memory write operations and simulated input hooks are disabled, while read-only ESP, 3D Sound ESP, damage markers, and Web Radar continue operating cleanly. You can also toggle "Enable Flag Bypass Mode (ESP & Visuals Only)" in the GUI settings.
+
 <br>
 
 ## Build from Source

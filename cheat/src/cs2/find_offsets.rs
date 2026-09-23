@@ -128,7 +128,17 @@ impl CS2 {
         offsets.direct.global_vars = if let Some(global_vars) = self.process.scan(
             "48 8D 05 ? ? ? ? 45 31 E4 48 8B 00 8B 78 10",
             offsets.library.client,
-        ) {
+        ).or_else(|| {
+            self.process.scan(
+                "48 89 0d ? ? ? ? 48 89 05 ? ? ? ? 48 8d 05",
+                offsets.library.client,
+            )
+        }).or_else(|| {
+            self.process.scan(
+                "48 8b 05 ? ? ? ? 48 8b 40 10",
+                offsets.library.client,
+            )
+        }) {
             self.process.get_relative_address(global_vars, 0x03, 0x07)
         } else {
             utils::warn!("could not find global vars offset");
@@ -143,9 +153,29 @@ impl CS2 {
                 "48 8b 0d ? ? ? ? 48 85 c9 74 ? 48 8b 01",
                 offsets.library.client,
             )
+        }).or_else(|| {
+            self.process.scan(
+                "48 8d 0d ? ? ? ? 48 89 05 ? ? ? ? e8 ? ? ? ? 48 8d 05",
+                offsets.library.client,
+            )
+        }).or_else(|| {
+            self.process.scan(
+                "48 8b 05 ? ? ? ? 48 8d 35",
+                offsets.library.client,
+            )
+        }).or_else(|| {
+            self.process.scan(
+                "4c 8d 35 ? ? ? ?",
+                offsets.library.physics,
+            )
+        }).or_else(|| {
+            self.process.scan(
+                "48 8b 0d ? ? ? ?",
+                offsets.library.physics,
+            )
         }) {
             let vphys_world_global_ptr = self.process.get_relative_address(vphys_world, 3, 7);
-            offsets.direct.vphys_world = vphys_world_global_ptr;
+            offsets.direct.vphys_world = self.process.read(vphys_world_global_ptr);
         } else {
             utils::warn!("could not find vphys_world offset (radar walls disabled)");
         }

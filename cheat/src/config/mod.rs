@@ -42,6 +42,7 @@ pub struct Config {
     pub input_tps: u32,
     pub graph_refresh_hz: u32,
     pub font: Font,
+    pub visuals_only_mode: bool,
 }
 
 impl Default for Config {
@@ -63,6 +64,7 @@ impl Default for Config {
             input_tps: 120,
             graph_refresh_hz: 30,
             font: Font::FiraSans,
+            visuals_only_mode: false,
         }
     }
 }

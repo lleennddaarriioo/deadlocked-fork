@@ -93,7 +93,7 @@ const REL_WHEEL: u16 = 0x08;
 const BTN_LEFT: u16 = 0x110;
 
 pub struct Mouse {
-    file: File,
+    file: Option<File>,
 }
 
 static CREATED: AtomicBool = AtomicBool::new(false);
@@ -102,10 +102,13 @@ impl Mouse {
         if CREATED.swap(true, Ordering::Relaxed) {
             return Err("mouse already initialized".into());
         }
-        let file = File::options()
-            .write(true)
-            .open("/dev/uinput")
-            .map_err(|e| e.to_string())?;
+        let file = match File::options().write(true).open("/dev/uinput") {
+            Ok(f) => f,
+            Err(e) => {
+                utils::warn!("could not open /dev/uinput for mouse simulation ({e}); mouse input disabled!");
+                return Ok(Self { file: None });
+            }
+        };
         let fd = file.as_raw_fd();
 
         unsafe {
@@ -124,10 +127,11 @@ impl Mouse {
             ui_dev_create(fd).map_err(|e| e.to_string())?;
         }
 
-        Ok(Self { file })
+        Ok(Self { file: Some(file) })
     }
 
     pub fn move_rel(&mut self, coords: Vec2) {
+        let Some(file) = &mut self.file else { return };
         let coords = IVec2::new(coords.x as i32, coords.y as i32);
 
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
@@ -157,17 +161,18 @@ impl Mouse {
             value: 0,
         };
 
-        if let Err(e) = self.file.write_all(&x.bytes()) {
+        let Some(file) = &mut self.file else { return };
+        if let Err(e) = file.write_all(&x.bytes()) {
             eprintln!("[MOUSE-ERROR] Failed to write X relative movement to /dev/uinput: {}", e);
         }
-        if let Err(e) = self.file.write_all(&syn.bytes()) {
+        if let Err(e) = file.write_all(&syn.bytes()) {
             eprintln!("[MOUSE-ERROR] Failed to write SYN event to /dev/uinput: {}", e);
         }
 
-        if let Err(e) = self.file.write_all(&y.bytes()) {
+        if let Err(e) = file.write_all(&y.bytes()) {
             eprintln!("[MOUSE-ERROR] Failed to write Y relative movement to /dev/uinput: {}", e);
         }
-        if let Err(e) = self.file.write_all(&syn.bytes()) {
+        if let Err(e) = file.write_all(&syn.bytes()) {
             eprintln!("[MOUSE-ERROR] Failed to write SYN event to /dev/uinput: {}", e);
         }
     }
@@ -182,6 +187,7 @@ impl Mouse {
 
     #[allow(dead_code)]
     pub fn scroll_down(&mut self) {
+        let Some(file) = &mut self.file else { return };
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
         let time = Timeval {
             seconds: now.as_secs(),
@@ -202,11 +208,12 @@ impl Mouse {
             value: 0,
         };
 
-        self.file.write_all(&ev.bytes()).unwrap();
-        self.file.write_all(&syn.bytes()).unwrap();
+        let _ = file.write_all(&ev.bytes());
+        let _ = file.write_all(&syn.bytes());
     }
 
     fn key(&mut self, pressed: i32) {
+        let Some(file) = &mut self.file else { return };
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
         let time = Timeval {
             seconds: now.as_secs(),
@@ -227,14 +234,16 @@ impl Mouse {
             value: 0,
         };
 
-        self.file.write_all(&press.bytes()).unwrap();
-        self.file.write_all(&syn.bytes()).unwrap();
+        let _ = file.write_all(&press.bytes());
+        let _ = file.write_all(&syn.bytes());
     }
 }
 
 impl Drop for Mouse {
     fn drop(&mut self) {
-        let _ = unsafe { ui_dev_destroy(self.file.as_raw_fd()) };
+        if let Some(file) = &self.file {
+            let _ = unsafe { ui_dev_destroy(file.as_raw_fd()) };
+        }
         CREATED.store(false, Ordering::Relaxed);
     }
 }
